@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Jarvis</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --panel: #ffffff; --text: #16181d; --muted: #646b78;
+    --border: #e2e5ea; --accent: #2f6fed; --accent-soft: #e8efff;
+    --ok: #1f8a4c; --warn: #b26a00; --chip: #f0f2f5;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f1115; --panel: #171a20; --text: #e7e9ee; --muted: #959cab;
+      --border: #272b33; --accent: #6d9bff; --accent-soft: #1c2740;
+      --ok: #4cc283; --warn: #e3a341; --chip: #20242c;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  header { position: sticky; top: 0; z-index: 2; background: var(--bg);
+           border-bottom: 1px solid var(--border); }
+  .bar { max-width: 1200px; margin: 0 auto; padding: 14px 16px; display: flex;
+         gap: 12px; align-items: center; flex-wrap: wrap; }
+  h1 { font-size: 18px; margin: 0; letter-spacing: .02em; }
+  h1 span { color: var(--accent); }
+  nav { display: flex; gap: 4px; flex-wrap: wrap; }
+  nav button { border: 0; background: none; color: var(--muted); padding: 6px 10px;
+               border-radius: 6px; cursor: pointer; font: inherit; }
+  nav button.active { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+  .spacer { flex: 1; }
+  input[type=search] { background: var(--panel); color: var(--text); border: 1px solid var(--border);
+                       border-radius: 8px; padding: 7px 10px; width: 220px; font: inherit; }
+  .icon-btn { background: var(--panel); border: 1px solid var(--border); color: var(--text);
+              border-radius: 8px; padding: 6px 10px; cursor: pointer; font: inherit; }
+  main { max-width: 1200px; margin: 0 auto; padding: 20px 16px 60px; }
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin-bottom: 24px; }
+  .stat { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 14px; cursor: pointer; }
+  .stat b { display: block; font-size: 26px; font-variant-numeric: tabular-nums; }
+  .stat small { color: var(--muted); }
+  h2 { font-size: 15px; margin: 28px 0 10px; }
+  h2 .count { color: var(--muted); font-weight: 400; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 12px; }
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 14px; min-width: 0; }
+  .card h3 { margin: 0 0 4px; font-size: 14px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .card p { margin: 6px 0 0; color: var(--muted); }
+  .desc { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+  .card.open .desc { -webkit-line-clamp: unset; }
+  .path { font: 12px ui-monospace, Consolas, monospace; color: var(--muted); word-break: break-all; }
+  .chip { display: inline-block; background: var(--chip); color: var(--muted); border-radius: 999px;
+          padding: 1px 8px; font-size: 12px; font-weight: 400; }
+  .chip.ok { color: var(--ok); } .chip.warn { color: var(--warn); } .chip.accent { color: var(--accent); }
+  .row { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+  ul.sessions { list-style: none; padding: 0; margin: 10px 0 0; border-top: 1px solid var(--border); }
+  ul.sessions li { padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+  ul.sessions time { color: var(--muted); font-size: 12px; display: block; }
+  pre { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 14px;
+        white-space: pre-wrap; word-break: break-word; font: 13px ui-monospace, Consolas, monospace; }
+  .empty { color: var(--muted); font-style: italic; }
+  .note { color: var(--muted); font-size: 13px; }
+  @media (max-width: 600px) { input[type=search] { width: 100%; } .grid { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<header>
+  <div class="bar">
+    <h1>J<span>.</span>A<span>.</span>R<span>.</span>V<span>.</span>I<span>.</span>S</h1>
+    <nav id="tabs"></nav>
+    <div class="spacer"></div>
+    <input type="search" id="q" placeholder="Filtrer…" aria-label="Filtrer">
+    <button class="icon-btn" id="refresh" title="Recharger l'inventaire">↻</button>
+  </div>
+</header>
+<main id="app"><p class="empty">Chargement de l'inventaire…</p></main>
+
+<script>
+const TABS = [
+  ["overview", "Vue d'ensemble"], ["projects", "Projets"], ["skills", "Skills"],
+  ["mcp", "MCP"], ["plugins", "Plugins"], ["config", "Config"],
+];
+let data = null, tab = "overview", query = "";
+try { tab = localStorage.getItem("jarvis.tab") || tab; } catch {}
+
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const ago = iso => {
+  if (!iso) return "—";
+  const s = (Date.now() - new Date(iso)) / 1000;
+  if (s < 3600) return `il y a ${Math.max(1, Math.round(s / 60))} min`;
+  if (s < 86400) return `il y a ${Math.round(s / 3600)} h`;
+  return `il y a ${Math.round(s / 86400)} j`;
+};
+const match = (...fields) => !query || fields.join(" ").toLowerCase().includes(query);
+const chip = (t, cls = "") => `<span class="chip ${cls}">${esc(t)}</span>`;
+
+function renderTabs() {
+  document.getElementById("tabs").innerHTML = TABS.map(([id, label]) =>
+    `<button data-tab="${id}" class="${id === tab ? "active" : ""}">${label}</button>`).join("");
+}
+
+function setTab(t) {
+  tab = t;
+  try { localStorage.setItem("jarvis.tab", t); } catch {}
+  render();
+}
+
+function section(title, items, empty = "Rien ici.") {
+  return `<h2>${title} <span class="count">${items.length}</span></h2>` +
+    (items.length ? `<div class="grid">${items.join("")}</div>` : `<p class="empty">${empty}</p>`);
+}
+
+function projectCard(p) {
+  const g = p.git;
+  const chips = [
+    p.exists ? "" : chip("dossier introuvable", "warn"),
+    g ? chip(`git · ${g.branch}`, "accent") : chip("pas de git"),
+    g && g.dirtyFiles ? chip(`${g.dirtyFiles} modif.`, "warn") : "",
+    p.hasClaudeMd ? chip("CLAUDE.md", "ok") : "",
+    p.mcpServers.length ? chip(`${p.mcpServers.length} MCP`) : "",
+    p.skills.length ? chip(`${p.skills.length} skills`) : "",
+    chip(`${p.sessionCount} session${p.sessionCount > 1 ? "s" : ""}`),
+  ].join("");
+  const sessions = p.sessions.filter(s => s.firstPrompt).slice(0, 3).map(s =>
+    `<li><time>${ago(s.updatedAt)} · ${s.sizeKb} Ko</time>${esc(s.firstPrompt)}</li>`).join("");
+  return `<div class="card">
+    <h3>${esc(p.name)}</h3>
+    <div class="path">${esc(p.path)}</div>
+    <div class="row">${chips}</div>
+    <p>Dernière activité : ${ago(p.lastActivity)}${g && g.lastCommit ? ` · dernier commit : ${esc(g.lastCommit.split(" ").slice(1).join(" "))}` : ""}</p>
+    ${sessions ? `<ul class="sessions">${sessions}</ul>` : ""}
+  </div>`;
+}
+
+function itemCard(s) {
+  const used = s.usageCount ? chip(`utilisé ${s.usageCount}× · ${ago(s.lastUsedAt)}`, "ok") : "";
+  return `<div class="card" data-expand>
+    <h3>${esc(s.name)} ${chip(s.source, s.source === "user" ? "accent" : "")} ${used}</h3>
+    <p class="desc">${esc(s.description) || "<i>Pas de description</i>"}</p>
+  </div>`;
+}
+
+function mcpCard(m) {
+  const target = m.url || [m.command, m.argCount ? `+${m.argCount} arg` : ""].filter(Boolean).join(" ");
+  const keys = [...m.envKeys.map(k => `env:${k}`), ...m.headerKeys.map(k => `header:${k}`)];
+  return `<div class="card">
+    <h3>${esc(m.name)} ${chip(m.type)} ${chip(m.scope, "accent")} ${m.project ? chip(m.project) : ""}</h3>
+    <div class="path">${esc(target)}</div>
+    ${keys.length ? `<div class="row">${keys.map(k => chip(k)).join("")}</div>` : ""}
+  </div>`;
+}
+
+function pluginCard(p) {
+  const parts = [...p.skills.map(s => `skill:${s}`), ...p.commands.map(c => `/${c}`), ...p.agents.map(a => `agent:${a}`)];
+  return `<div class="card">
+    <h3>${esc(p.id)} ${chip(`v${p.version}`)} ${chip(p.enabled ? "activé" : "désactivé", p.enabled ? "ok" : "warn")}</h3>
+    <p>Installé ${ago(p.installedAt)} · portée ${esc(p.scope)}</p>
+    <div class="row">${parts.map(x => chip(x)).join("")}</div>
+  </div>`;
+}
+
+function allMcp() {
+  return [
+    ...data.mcpServers,
+    ...data.projects.flatMap(p => p.mcpServers.map(m => ({ ...m, project: p.name }))),
+  ];
+}
+
+function allSkills() {
+  return [...data.skills, ...data.projects.flatMap(p => p.skills.map(s => ({ ...s, source: `projet:${p.name}` })))];
+}
+
+function render() {
+  renderTabs();
+  const app = document.getElementById("app");
+  if (!data) return;
+  const projects = data.projects.filter(p => match(p.name, p.path, ...p.sessions.map(s => s.firstPrompt || "")));
+  const skills = allSkills().filter(s => match(s.name, s.description, s.source));
+  const mcp = allMcp().filter(m => match(m.name, m.command || "", m.url || "", m.scope));
+  const plugins = data.plugins.filter(p => match(p.id, ...p.skills, ...p.commands, ...p.agents));
+  const extras = [...data.agents, ...data.commands].filter(s => match(s.name, s.description, s.source));
+  let html = "";
+
+  if (tab === "overview") {
+    const totalSessions = data.projects.reduce((n, p) => n + p.sessionCount, 0) + data.scratchSessionCount;
+    const stats = [
+      ["projects", data.projects.length, "projets"],
+      ["skills", allSkills().length, "skills"],
+      ["mcp", allMcp().length, "serveurs MCP"],
+      ["plugins", data.plugins.length, "plugins"],
+      ["projects", totalSessions, "sessions au total"],
+    ];
+    html += `<div class="stats">${stats.map(([t, n, l]) =>
+      `<div class="stat" data-goto="${t}"><b>${n}</b><small>${l}</small></div>`).join("")}</div>`;
+    html += section("Projets récents", projects.slice(0, 4).map(projectCard));
+    const recentSkills = [...skills].filter(s => s.usageCount).sort((a, b) => (b.lastUsedAt || "").localeCompare(a.lastUsedAt || ""));
+    html += section("Skills utilisés récemment", recentSkills.map(itemCard), "Aucun skill utilisé pour l'instant.");
+  } else if (tab === "projects") {
+    html += section("Projets", projects.map(projectCard));
+    html += `<p class="note">${data.scratchSessionCount} sessions « sans dossier » ne sont pas listées ici.</p>`;
+  } else if (tab === "skills") {
+    html += section("Skills", skills.map(itemCard));
+    html += section("Agents & commandes", extras.map(itemCard), "Aucun agent ni commande personnalisés.");
+  } else if (tab === "mcp") {
+    html += section("Serveurs MCP", mcp.map(mcpCard));
+    html += `<p class="note">Les connecteurs de l'app Claude (Docs, Chrome, navigateur intégré…) sont gérés par l'app et n'apparaissent pas dans ces fichiers. Les valeurs secrètes (env, headers, query string) ne sont jamais lues.</p>`;
+  } else if (tab === "plugins") {
+    html += section("Plugins", plugins.map(pluginCard));
+    html += section("Marketplaces", data.marketplaces.filter(m => match(m.name, m.url || "")).map(m =>
+      `<div class="card"><h3>${esc(m.name)}</h3><div class="path">${esc(m.url)}</div><p>Mis à jour ${ago(m.lastUpdated)}</p></div>`));
+  } else if (tab === "config") {
+    html += `<h2>Compte</h2><div class="grid"><div class="card">
+      <p>${esc(data.account.email || "—")}</p>
+      <div class="row">${chip(`install : ${data.account.installMethod || "?"}`)}${chip(`mises à jour : ${data.account.autoUpdatesChannel || "?"}`)}</div>
+    </div></div>`;
+    html += `<h2>CLAUDE.md global</h2>` + (data.globalClaudeMd ? `<pre>${esc(data.globalClaudeMd)}</pre>` : `<p class="empty">Aucun.</p>`);
+  }
+  html += `<p class="note">Inventaire généré ${ago(data.generatedAt)} · lecture seule</p>`;
+  app.innerHTML = html;
+}
+
+async function load() {
+  const app = document.getElementById("app");
+  try {
+    const r = await fetch("/api/inventory");
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    data = await r.json();
+    render();
+  } catch (e) {
+    app.innerHTML = `<p class="empty">Impossible de charger l'inventaire : ${esc(e.message)}</p>`;
+  }
+}
+
+document.addEventListener("click", e => {
+  const t = e.target.closest("[data-tab]");
+  if (t) return setTab(t.dataset.tab);
+  const g = e.target.closest("[data-goto]");
+  if (g) return setTab(g.dataset.goto);
+  const c = e.target.closest("[data-expand]");
+  if (c) c.classList.toggle("open");
+});
+document.getElementById("q").addEventListener("input", e => { query = e.target.value.trim().toLowerCase(); render(); });
+document.getElementById("refresh").addEventListener("click", load);
+renderTabs();
+load();
+</script>
+</body>
+</html>
