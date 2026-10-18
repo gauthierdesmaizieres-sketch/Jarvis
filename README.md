@@ -22,6 +22,20 @@ Ce qui est lu (jamais écrit) :
 | `<projet>/.mcp.json`, `<projet>/.claude/` | MCP, skills, agents et commandes du projet |
 | `%APPDATA%/Claude/claude_desktop_config.json` | serveurs MCP de l'app desktop |
 
+### Liens des projets
+
+Chaque carte projet affiche ses liens, détectés automatiquement :
+
+- remote GitHub `origin` → GitHub, Changelog (commits), Actions s'il y a des workflows, Site web (GitHub Pages) s'il y a un `index.html` à la racine ou dans `docs/` ;
+- `.claude/launch.json` → serveurs locaux (marqués « PC », inaccessibles depuis le téléphone) ;
+- les dépôts git imbriqués d'un niveau (un dossier projet qui contient plusieurs apps) sont aussi lus.
+
+Pour ajouter un lien à la main, l'écrire dans [links.json](links.json), avec comme clé le nom du dossier du projet :
+
+```json
+{ "Mon projet": [{ "label": "Démo", "url": "https://…" }] }
+```
+
 Sécurité : le serveur n'écoute que sur `127.0.0.1`. Les valeurs `env`, `headers` et les query strings des serveurs MCP ne sont jamais renvoyées, seulement leurs noms.
 
 Limite connue : les connecteurs gérés par l'app Claude (Docs, Chrome, navigateur intégré…) ne sont pas dans ces fichiers et n'apparaissent pas.

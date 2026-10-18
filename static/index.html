@@ -120,6 +120,15 @@
   .chip.warn { color: var(--warn); border-color: rgba(255,181,71,.4); }
   .chip.accent { color: var(--cyan); border-color: rgba(63,216,255,.5); }
   .row { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+  .links { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+  .link { font: 600 12px var(--display); letter-spacing: .08em; text-transform: uppercase; text-decoration: none;
+          color: var(--cyan); border: 1px solid rgba(63,216,255,.5); padding: 4px 10px;
+          clip-path: polygon(6px 0, 100% 0, calc(100% - 6px) 100%, 0 100%); transition: background .2s, color .2s; }
+  .link:hover { background: var(--cyan); color: var(--bg); box-shadow: var(--glow); }
+  .link.web { background: rgba(63,216,255,.16); }
+  .link.local { color: var(--warn); border-color: rgba(255,181,71,.45); }
+  .link.local:hover { background: var(--warn); color: var(--bg); }
+  .link.local::after { content: " · PC"; opacity: .7; }
   ul.sessions { list-style: none; padding: 0; margin: 10px 0 0; border-top: 1px dashed var(--line); }
   ul.sessions li { padding: 7px 0; border-bottom: 1px dashed var(--line); font-size: 14px; }
   ul.sessions time { color: var(--cyan-dim); font: 11px var(--mono); display: block; letter-spacing: .08em; }
@@ -249,12 +258,15 @@ function projectCard(p) {
     p.skills.length ? chip(`${p.skills.length} skills`) : "",
     chip(`${p.sessionCount} session${p.sessionCount > 1 ? "s" : ""}`),
   ].join("");
+  const links = (p.links || []).map(l =>
+    `<a class="link ${l.kind}" href="${esc(l.url)}" target="_blank" rel="noopener" title="${esc(l.url)}">${esc(l.label)}</a>`).join("");
   const sessions = p.sessions.filter(s => s.firstPrompt).slice(0, 3).map(s =>
     `<li><time>${ago(s.updatedAt)} · ${s.sizeKb} Ko</time>${esc(s.firstPrompt)}</li>`).join("");
   return `<div class="card">
     <h3>${esc(p.name)}</h3>
     <div class="path">${esc(p.path)}</div>
     <div class="row">${chips}</div>
+    ${links ? `<div class="links">${links}</div>` : ""}
     <p>Dernière activité : ${ago(p.lastActivity)}${g && g.lastCommit ? ` · dernier commit : ${esc(g.lastCommit.split(" ").slice(1).join(" "))}` : ""}</p>
     ${sessions ? `<ul class="sessions">${sessions}</ul>` : ""}
   </div>`;

@@ -184,6 +184,64 @@ def _git_info(path):
     }
 
 
+GITHUB_RE = re.compile(r"github\.com[:/]([^/]+)/([^/\s]+?)(?:\.git)?$")
+LINKS_FILE = Path(__file__).resolve().parent.parent / "links.json"
+
+
+def _github_links(repo_dir, label_prefix=""):
+    try:
+        r = subprocess.run(["git", "-C", str(repo_dir), "remote", "get-url", "origin"],
+                           capture_output=True, encoding="utf-8", errors="replace", timeout=5)
+    except (OSError, subprocess.SubprocessError):
+        return []
+    m = GITHUB_RE.search(r.stdout.strip()) if r.returncode == 0 else None
+    if not m:
+        return []
+    owner, repo = m.groups()
+    base = f"https://github.com/{owner}/{repo}"
+    p = f"{label_prefix} · " if label_prefix else ""
+    links = [
+        {"label": f"{p}GitHub", "url": base, "kind": "repo"},
+        {"label": f"{p}Changelog", "url": f"{base}/commits", "kind": "changelog"},
+    ]
+    if (repo_dir / ".github" / "workflows").is_dir():
+        links.append({"label": f"{p}Actions", "url": f"{base}/actions", "kind": "ci"})
+    # GitHub Pages is usually served from the root or /docs.
+    if (repo_dir / "index.html").is_file() or (repo_dir / "docs" / "index.html").is_file():
+        links.insert(0, {"label": f"{p}Site web", "url": f"https://{owner.lower()}.github.io/{repo}/", "kind": "web"})
+    return links
+
+
+def _local_links(folder, label_prefix=""):
+    launch = _load_json(folder / ".claude" / "launch.json") or {}
+    out = []
+    for c in launch.get("configurations", []):
+        url = c.get("url") or (f"http://localhost:{c['port']}" if c.get("port") else None)
+        if url:
+            name = c.get("name") or label_prefix or "local"
+            out.append({"label": f"Local · {name}", "url": url, "kind": "local"})
+    return out
+
+
+def _project_links(path, name):
+    """Links of a project: GitHub, Pages, local dev servers, plus links.json overrides.
+
+    Git repos nested one level down (a project folder holding several apps) count too.
+    """
+    links = _github_links(path) + _local_links(path)
+    for sub in sorted(path.iterdir()) if path.is_dir() else []:
+        if sub.is_dir() and not sub.name.startswith(".") and (sub / ".git").exists():
+            links += _github_links(sub, sub.name) + _local_links(sub, sub.name)
+    manual = (_load_json(LINKS_FILE) or {}).get(name, [])
+    links = [{**l, "kind": l.get("kind", "custom")} for l in manual] + links
+    seen, unique = set(), []
+    for l in links:
+        if l["url"] not in seen:
+            seen.add(l["url"])
+            unique.append(l)
+    return unique
+
+
 def _project(path_str, cfg):
     path = Path(path_str)
     exists = path.is_dir()
@@ -198,6 +256,7 @@ def _project(path_str, cfg):
         "exists": exists,
         "hasClaudeMd": exists and ((path / "CLAUDE.md").is_file() or (path / ".claude" / "CLAUDE.md").is_file()),
         "git": _git_info(path) if exists else None,
+        "links": _project_links(path, path.name) if exists else [],
         "mcpServers": mcp,
         "skills": _skills_in(path / ".claude" / "skills", "project") if exists else [],
         "agents": _md_items_in(path / ".claude" / "agents", "project") if exists else [],
