@@ -51,10 +51,15 @@ def _frontmatter(md_path):
     end = text.find("\n---", 3)
     if end == -1:
         return meta
+    key = None
     for line in text[3:end].splitlines():
         m = re.match(r"^([A-Za-z_-]+):\s*(.*)$", line)
         if m:
-            meta[m.group(1)] = m.group(2).strip().strip('"').strip("'")
+            key, value = m.group(1), m.group(2).strip()
+            # Block scalars (`>-`, `|`) continue on the indented lines below.
+            meta[key] = "" if value[:1] in (">", "|") else value.strip('"').strip("'")
+        elif key and line.startswith((" ", "\t")):
+            meta[key] = (meta[key] + " " + line.strip()).strip()
     return meta
 
 

@@ -22,6 +22,21 @@ Ce qui est lu (jamais écrit) :
 | `<projet>/.mcp.json`, `<projet>/.claude/` | MCP, skills, agents et commandes du projet |
 | `%APPDATA%/Claude/claude_desktop_config.json` | serveurs MCP de l'app desktop |
 
+### Version en ligne (téléphone, PC éteint)
+
+Une copie autonome du dashboard est publiée en Artifact privé sur claude.ai :
+https://claude.ai/artifact/Px4f79WX52RJz9cjXR53F6
+
+Elle s'ouvre depuis le téléphone (navigateur ou app Claude, connecté à ton compte), même quand le PC est éteint. Elle montre l'état du dernier envoi, pas l'état en direct, et masque les liens locaux (« PC »), qui ne marchent pas hors du PC.
+
+Pour la mettre à jour :
+
+```bash
+python snapshot.py
+```
+
+Puis demander à Claude de republier `dist/jarvis.html` sur cette URL (« mets à jour Jarvis en ligne »).
+
 ### Liens des projets
 
 Chaque carte projet affiche ses liens, détectés automatiquement :

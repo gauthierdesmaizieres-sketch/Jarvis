@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Jarvis</title>
+<meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700&family=Rajdhani:wght@400;500;600&family=Share+Tech+Mono&display=swap" rel="stylesheet">
 <style>
@@ -15,6 +16,7 @@
     --body: "Rajdhani", "Segoe UI", system-ui, sans-serif;
     --mono: "Share Tech Mono", Consolas, ui-monospace, monospace;
     --glow: 0 0 6px rgba(63, 216, 255, .55), 0 0 18px rgba(63, 216, 255, .25);
+    color-scheme: dark;
   }
   * { box-sizing: border-box; }
   html { background: var(--bg); }
@@ -34,9 +36,10 @@
     mix-blend-mode: multiply;
   }
 
-  header { position: sticky; top: 0; z-index: 5; background: rgba(3, 7, 13, .85);
+  header { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: rgba(3, 7, 13, .85);
            backdrop-filter: blur(6px); border-bottom: 1px solid var(--line); }
-  .bar { max-width: 1240px; margin: 0 auto; padding: 12px 16px; display: flex; gap: 14px;
+  .bar { max-width: 1240px; margin: 0 auto; padding-block: 12px;
+         padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: flex; gap: 14px;
          align-items: center; flex-wrap: wrap; }
   .brand { display: flex; align-items: center; gap: 10px; cursor: pointer; }
   .brand .mini-core { width: 28px; height: 28px; border-radius: 50%; border: 2px solid var(--cyan);
@@ -60,7 +63,8 @@
               cursor: pointer; font: 16px var(--mono); }
   .icon-btn:hover { box-shadow: var(--glow); border-color: var(--cyan); }
 
-  main { max-width: 1240px; margin: 0 auto; padding: 24px 16px 70px; position: relative; z-index: 1; }
+  main { max-width: 1240px; margin: 0 auto; padding-block: 24px 70px;
+         padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); position: relative; z-index: 1; }
 
   /* --- Arc reactor hero --- */
   .hero { display: grid; grid-template-columns: 1fr auto 1fr; gap: 28px; align-items: center; margin: 8px 0 36px; }
@@ -129,6 +133,17 @@
   .link.local { color: var(--warn); border-color: rgba(255,181,71,.45); }
   .link.local:hover { background: var(--warn); color: var(--bg); }
   .link.local::after { content: " · PC"; opacity: .7; }
+  .quick { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 12px; }
+  .quick-item { display: flex; flex-direction: column; gap: 2px; padding: 14px 16px; text-decoration: none;
+                color: var(--text); background: rgba(63,216,255,.08); border: 1px solid rgba(63,216,255,.5);
+                clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 12px 100%, 0 calc(100% - 12px));
+                transition: background .2s, box-shadow .2s; }
+  .quick-item b { font: 600 15px var(--display); letter-spacing: .08em; }
+  .quick-item small { font: 12px var(--mono); color: var(--cyan); letter-spacing: .1em; text-transform: uppercase; }
+  .quick-item:hover, .quick-item:focus-visible { background: rgba(63,216,255,.2); box-shadow: var(--glow); outline: none; }
+  .quick-item.local { border-color: rgba(255,181,71,.45); background: rgba(255,181,71,.06); }
+  .quick-item.local small { color: var(--warn); }
+  a:focus-visible, button:focus-visible, .stat:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
   ul.sessions { list-style: none; padding: 0; margin: 10px 0 0; border-top: 1px dashed var(--line); }
   ul.sessions li { padding: 7px 0; border-bottom: 1px dashed var(--line); font-size: 14px; }
   ul.sessions time { color: var(--cyan-dim); font: 11px var(--mono); display: block; letter-spacing: .08em; }
@@ -163,7 +178,11 @@
     .stat { min-width: 150px; }
   }
   @media (max-width: 600px) {
-    input[type=search] { width: 100%; }
+    .bar { gap: 10px; }
+    nav { order: 3; width: 100%; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+    nav button { flex: none; }
+    .spacer { display: none; }
+    input[type=search] { flex: 1; width: auto; min-width: 0; }
     .grid { grid-template-columns: 1fr; }
     .reactor { width: 240px; height: 240px; }
     .r5 { inset: 66px; } .r4 { inset: 46px; } .r3 { inset: 30px; }
@@ -217,7 +236,21 @@ const ROADMAP = [
   ]},
 ];
 
+// Set by snapshot.py in the online copy, which works without the PC.
+const SNAPSHOT = window.JARVIS_DATA || null;
 let data = null, tab = "overview", query = "";
+// localhost links only make sense on the PC that serves them.
+const visibleLinks = p => (p.links || []).filter(l => !(SNAPSHOT && l.kind === "local"));
+
+function quickAccess() {
+  const items = data.projects.flatMap(p => visibleLinks(p)
+    .filter(l => l.kind === "web" || l.kind === "custom" || (l.kind === "local" && !SNAPSHOT))
+    .map(l => ({ ...l, project: p.name })));
+  if (!items.length) return "";
+  return `<h2>Accès rapide <span class="count">[${items.length}]</span></h2><div class="quick">${items.map(l =>
+    `<a class="quick-item ${l.kind}" href="${esc(l.url)}" target="_blank" rel="noopener">
+       <b>${esc(l.project)}</b><small>${esc(l.label.replace(/^.*· /, ""))} ↗</small></a>`).join("")}</div>`;
+}
 try { tab = localStorage.getItem("jarvis.tab") || tab; } catch {}
 
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -258,7 +291,7 @@ function projectCard(p) {
     p.skills.length ? chip(`${p.skills.length} skills`) : "",
     chip(`${p.sessionCount} session${p.sessionCount > 1 ? "s" : ""}`),
   ].join("");
-  const links = (p.links || []).map(l =>
+  const links = visibleLinks(p).map(l =>
     `<a class="link ${l.kind}" href="${esc(l.url)}" target="_blank" rel="noopener" title="${esc(l.url)}">${esc(l.label)}</a>`).join("");
   const sessions = p.sessions.filter(s => s.firstPrompt).slice(0, 3).map(s =>
     `<li><time>${ago(s.updatedAt)} · ${s.sizeKb} Ko</time>${esc(s.firstPrompt)}</li>`).join("");
@@ -355,7 +388,10 @@ function render() {
         ${stat("roadmap", ROADMAP.length - 1, "évolutions prévues")}
       </div>
     </section>
-    <div class="status-line"><span class="dot"></span>TOUS LES SYSTÈMES OPÉRATIONNELS · ${esc(data.account.email || "")}</div>`;
+    <div class="status-line"><span class="dot"></span>${SNAPSHOT
+      ? `INSTANTANÉ EN LIGNE · MIS À JOUR ${esc(ago(data.generatedAt).toUpperCase())}`
+      : "TOUS LES SYSTÈMES OPÉRATIONNELS"} · ${esc(data.account.email || "")}</div>`;
+    html += quickAccess();
     html += section("Projets récents", projects.slice(0, 4).map(projectCard));
     const recentSkills = [...skills].filter(s => s.usageCount).sort((a, b) => (b.lastUsedAt || "").localeCompare(a.lastUsedAt || ""));
     html += section("Skills utilisés récemment", recentSkills.map(itemCard), "// aucun skill utilisé pour l'instant");
@@ -385,6 +421,7 @@ function render() {
 
 async function load() {
   const app = document.getElementById("app");
+  if (SNAPSHOT) { data = SNAPSHOT; render(); return; }
   try {
     const r = await fetch("/api/inventory");
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
@@ -405,6 +442,7 @@ document.addEventListener("click", e => {
 });
 document.getElementById("q").addEventListener("input", e => { query = e.target.value.trim().toLowerCase(); render(); });
 document.getElementById("refresh").addEventListener("click", load);
+document.getElementById("refresh").hidden = !!SNAPSHOT;
 renderTabs();
 load();
 </script>
