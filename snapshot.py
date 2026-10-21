@@ -34,6 +34,9 @@ def public_view(data):
     something real changes (a project, a link, a commit), so a rebuild after an
     ordinary turn produces the same page and nothing gets pushed."""
     for p in data["projects"]:
+        # Each publish commits here, so this repo's own last commit would re-trigger it forever.
+        if p["git"] and Path(p["path"]).resolve() == ROOT.resolve():
+            p["git"].pop("lastCommit", None)
         p["path"] = ""
         p["sessions"] = []
         p["links"] = [l for l in p["links"] if l["kind"] != "local"]
