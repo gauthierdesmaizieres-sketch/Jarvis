@@ -1,5 +1,16 @@
 {
   "Changelog Github": [
-    { "label": "Local · changelog", "url": "http://localhost:8765", "kind": "local" }
+    {
+      "label": "Local · changelog",
+      "url": "http://localhost:8765",
+      "kind": "local"
+    }
+  ],
+  "Cooking App": [
+    {
+      "label": "Local · e-mails de connexion",
+      "url": "http://127.0.0.1:54324",
+      "kind": "local"
+    }
   ]
 }
