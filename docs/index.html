@@ -1,0 +1,998 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Jarvis</title>
+<meta name="robots" content="noindex">
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700&family=Rajdhani:wght@400;500;600&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #03070d; --bg-2: #061220; --panel: rgba(8, 26, 44, .72);
+    --cyan: #3fd8ff; --cyan-dim: #1b6f8f; --cyan-faint: rgba(63, 216, 255, .12);
+    --text: #d6f3ff; --muted: #6f9bb3; --ok: #4dffb8; --warn: #ffb547; --line: rgba(63, 216, 255, .28);
+    --display: "Orbitron", "Segoe UI", sans-serif;
+    --body: "Rajdhani", "Segoe UI", system-ui, sans-serif;
+    --mono: "Share Tech Mono", Consolas, ui-monospace, monospace;
+    --glow: 0 0 6px rgba(63, 216, 255, .55), 0 0 18px rgba(63, 216, 255, .25);
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  html { background: var(--bg); }
+  body {
+    margin: 0; min-height: 100vh; color: var(--text); font: 16px/1.45 var(--body);
+    background:
+      radial-gradient(ellipse at 50% 18%, rgba(30, 120, 170, .22), transparent 60%),
+      linear-gradient(var(--cyan-faint) 1px, transparent 1px) 0 0 / 40px 40px,
+      linear-gradient(90deg, var(--cyan-faint) 1px, transparent 1px) 0 0 / 40px 40px,
+      var(--bg);
+    background-attachment: fixed;
+  }
+  /* Scanlines */
+  body::after {
+    content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 10;
+    background: repeating-linear-gradient(0deg, rgba(0,0,0,.18) 0 1px, transparent 1px 3px);
+    mix-blend-mode: multiply;
+  }
+
+  header { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: rgba(3, 7, 13, .85);
+           backdrop-filter: blur(6px); border-bottom: 1px solid var(--line); }
+  .bar { max-width: 1240px; margin: 0 auto; padding-block: 12px;
+         padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: flex; gap: 14px;
+         align-items: center; flex-wrap: wrap; }
+  .brand { display: flex; align-items: center; gap: 10px; cursor: pointer; }
+  .brand .mini-core { width: 28px; height: 28px; border-radius: 50%; border: 2px solid var(--cyan);
+                      box-shadow: var(--glow), inset 0 0 10px var(--cyan); position: relative; }
+  .brand .mini-core::after { content: ""; position: absolute; inset: 7px; border-radius: 50%;
+                             background: var(--cyan); box-shadow: 0 0 12px var(--cyan); }
+  h1 { font: 700 16px var(--display); margin: 0; letter-spacing: .35em; color: var(--text);
+       text-shadow: var(--glow); }
+  nav { display: flex; gap: 2px; flex-wrap: wrap; }
+  nav button { border: 1px solid transparent; background: none; color: var(--muted); padding: 5px 12px;
+               cursor: pointer; font: 500 12px var(--display); letter-spacing: .12em; text-transform: uppercase;
+               clip-path: polygon(8px 0, 100% 0, calc(100% - 8px) 100%, 0 100%); transition: color .2s, background .2s; }
+  nav button:hover { color: var(--text); }
+  nav button.active { color: var(--bg); background: var(--cyan); box-shadow: var(--glow); }
+  .spacer { flex: 1; }
+  input[type=search] { background: rgba(8, 26, 44, .8); color: var(--text); border: 1px solid var(--line);
+                       padding: 7px 12px; width: 220px; font: 14px var(--mono); outline: none; }
+  input[type=search]:focus { border-color: var(--cyan); box-shadow: var(--glow); }
+  input[type=search]::placeholder { color: var(--muted); }
+  .icon-btn { background: none; border: 1px solid var(--line); color: var(--cyan); padding: 5px 11px;
+              cursor: pointer; font: 16px var(--mono); }
+  .icon-btn:hover { box-shadow: var(--glow); border-color: var(--cyan); }
+
+  main { max-width: 1240px; margin: 0 auto; padding-block: 24px 70px;
+         padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); position: relative; z-index: 1; }
+
+  /* --- Arc reactor hero --- */
+  .hero { display: grid; grid-template-columns: 1fr auto 1fr; gap: 28px; align-items: center; margin: 8px 0 36px; }
+  .hud-col { display: flex; flex-direction: column; gap: 14px; }
+  .hud-col.left { align-items: flex-end; }
+  .reactor { width: 300px; height: 300px; position: relative; display: grid; place-items: center; }
+  .reactor .ring { position: absolute; border-radius: 50%; }
+  .r1 { inset: 0; border: 2px solid var(--cyan-dim); box-shadow: 0 0 40px rgba(63,216,255,.15), inset 0 0 30px rgba(63,216,255,.12); }
+  .r2 { inset: 14px; border: 6px dashed rgba(63,216,255,.35); animation: spin 40s linear infinite; }
+  .r3 { inset: 42px; border: 2px solid var(--cyan); border-left-color: transparent; border-right-color: transparent;
+        box-shadow: var(--glow); animation: spin 12s linear infinite reverse; }
+  .r4 { inset: 62px; border: 10px solid transparent; border-top-color: rgba(63,216,255,.55); border-bottom-color: rgba(63,216,255,.55);
+        animation: spin 7s linear infinite; }
+  .r5 { inset: 86px; background: radial-gradient(circle, #0c3a52 0%, #06243a 60%, #04182a 100%);
+        border: 3px solid var(--cyan); box-shadow: 0 0 30px var(--cyan), inset 0 0 30px rgba(63,216,255,.55); }
+  .reactor .label { position: relative; font: 700 21px var(--display); letter-spacing: .2em; color: #eafaff;
+                    text-shadow: 0 0 8px var(--cyan), 0 0 20px var(--cyan); padding-left: .2em; }
+  .reactor .sub { position: absolute; bottom: 104px; font: 10px var(--mono); color: var(--cyan); letter-spacing: .3em; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @keyframes pulse { 50% { opacity: .55; } }
+
+  .stat { position: relative; min-width: 200px; padding: 10px 16px; cursor: pointer; background: var(--panel);
+          border: 1px solid var(--line); clip-path: polygon(0 0, calc(100% - 14px) 0, 100% 14px, 100% 100%, 14px 100%, 0 calc(100% - 14px));
+          transition: border-color .2s, box-shadow .2s; }
+  .stat:hover { border-color: var(--cyan); box-shadow: var(--glow); }
+  .stat b { display: block; font: 700 30px var(--display); color: var(--cyan); text-shadow: var(--glow); font-variant-numeric: tabular-nums; }
+  .stat small { font: 12px var(--mono); color: var(--muted); letter-spacing: .15em; text-transform: uppercase; }
+  .hud-col.left .stat { text-align: right; }
+  /* connector lines from stats to the reactor */
+  .hud-col .stat::before { content: ""; position: absolute; top: 50%; width: 28px; height: 1px; background: var(--line); }
+  .hud-col.left .stat::before { right: -28px; }
+  .hud-col.right .stat::before { left: -28px; }
+
+  .status-line { font: 13px var(--mono); color: var(--muted); text-align: center; margin: -18px 0 30px; letter-spacing: .12em; }
+  .status-line .dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--ok);
+                      box-shadow: 0 0 8px var(--ok); margin-right: 8px; animation: pulse 2s ease-in-out infinite; }
+
+  /* --- Sections & cards --- */
+  h2 { font: 600 13px var(--display); letter-spacing: .25em; text-transform: uppercase; color: var(--cyan);
+       margin: 34px 0 14px; display: flex; align-items: center; gap: 12px; text-shadow: var(--glow); }
+  h2::after { content: ""; flex: 1; height: 1px; background: linear-gradient(90deg, var(--line), transparent); }
+  h2 .count { font: 13px var(--mono); color: var(--muted); text-shadow: none; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 14px; }
+  .card { position: relative; background: var(--panel); border: 1px solid var(--line); padding: 14px 16px; min-width: 0;
+          clip-path: polygon(0 0, calc(100% - 16px) 0, 100% 16px, 100% 100%, 0 100%); transition: border-color .2s, box-shadow .2s; }
+  .card::before { content: ""; position: absolute; left: -1px; top: 12px; width: 3px; height: 24px; background: var(--cyan); box-shadow: var(--glow); }
+  .card:hover { border-color: rgba(63,216,255,.6); box-shadow: inset 0 0 24px rgba(63,216,255,.08); }
+  .card h3 { margin: 0 0 4px; font: 600 17px var(--body); letter-spacing: .03em; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .card p { margin: 6px 0 0; color: var(--muted); }
+  .desc { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+  [data-expand] { cursor: pointer; }
+  .card.open .desc { -webkit-line-clamp: unset; }
+  .path { font: 12px var(--mono); color: var(--cyan-dim); word-break: break-all; }
+  .chip { display: inline-block; border: 1px solid var(--line); color: var(--muted); padding: 0 8px;
+          font: 11px var(--mono); letter-spacing: .06em; text-transform: uppercase; }
+  .chip.ok { color: var(--ok); border-color: rgba(77,255,184,.4); }
+  .chip.warn { color: var(--warn); border-color: rgba(255,181,71,.4); }
+  .chip.accent { color: var(--cyan); border-color: rgba(63,216,255,.5); }
+  .row { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+  .links { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+  .link { font: 600 12px var(--display); letter-spacing: .08em; text-transform: uppercase; text-decoration: none;
+          color: var(--cyan); border: 1px solid rgba(63,216,255,.5); padding: 4px 10px;
+          clip-path: polygon(6px 0, 100% 0, calc(100% - 6px) 100%, 0 100%); transition: background .2s, color .2s; }
+  .link:hover { background: var(--cyan); color: var(--bg); box-shadow: var(--glow); }
+  .link.web { background: rgba(63,216,255,.16); }
+  .link.local { color: var(--warn); border-color: rgba(255,181,71,.45); }
+  .link.local:hover { background: var(--warn); color: var(--bg); }
+  .link.local::after { content: " · PC"; opacity: .7; }
+  .quick { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 12px; }
+  .quick-item { display: flex; flex-direction: column; gap: 2px; padding: 14px 16px; text-decoration: none;
+                color: var(--text); background: rgba(63,216,255,.08); border: 1px solid rgba(63,216,255,.5);
+                clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 12px 100%, 0 calc(100% - 12px));
+                transition: background .2s, box-shadow .2s; }
+  .quick-item b { font: 600 15px var(--display); letter-spacing: .08em; }
+  .quick-item small { font: 12px var(--mono); color: var(--cyan); letter-spacing: .1em; text-transform: uppercase; }
+  .quick-item:hover, .quick-item:focus-visible { background: rgba(63,216,255,.2); box-shadow: var(--glow); outline: none; }
+  .quick-item.local { border-color: rgba(255,181,71,.45); background: rgba(255,181,71,.06); }
+  .quick-item.local small { color: var(--warn); }
+  a:focus-visible, button:focus-visible, .stat:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
+  ul.sessions { list-style: none; padding: 0; margin: 10px 0 0; border-top: 1px dashed var(--line); }
+  ul.sessions li { padding: 7px 0; border-bottom: 1px dashed var(--line); font-size: 14px; }
+  ul.sessions time { color: var(--cyan-dim); font: 11px var(--mono); display: block; letter-spacing: .08em; }
+  pre { background: var(--panel); border: 1px solid var(--line); padding: 14px; white-space: pre-wrap; word-break: break-word;
+        font: 13px var(--mono); color: var(--text); }
+  .empty { color: var(--muted); font: 13px var(--mono); }
+  .note { color: var(--muted); font: 12px var(--mono); letter-spacing: .04em; }
+
+  /* --- Roadmap --- */
+  .roadmap { position: relative; display: grid; gap: 18px; padding-left: 34px; }
+  .roadmap::before { content: ""; position: absolute; left: 11px; top: 8px; bottom: 8px; width: 2px;
+                     background: linear-gradient(var(--cyan), var(--cyan-dim) 30%, rgba(63,216,255,.1)); }
+  .phase { position: relative; }
+  .phase .node { position: absolute; left: -34px; top: 14px; width: 24px; height: 24px; border-radius: 50%;
+                 border: 2px solid var(--cyan-dim); background: var(--bg); }
+  .phase.live .node { border-color: var(--cyan); box-shadow: var(--glow); }
+  .phase.live .node::after { content: ""; position: absolute; inset: 5px; border-radius: 50%; background: var(--cyan); animation: pulse 2s infinite; }
+  .phase .card h3 { font: 700 15px var(--display); letter-spacing: .12em; }
+  .phase:not(.live) .card { opacity: .82; }
+  .phase ul { margin: 10px 0 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 6px 18px; }
+  .phase li { padding-left: 16px; position: relative; color: var(--text); }
+  .phase li::before { content: "›"; position: absolute; left: 0; color: var(--cyan); }
+  .phase li small { display: block; color: var(--muted); font-size: 13px; }
+
+  @media (max-width: 900px) {
+    .hero { grid-template-columns: 1fr; justify-items: center; }
+    .hud-col { flex-direction: row; flex-wrap: wrap; justify-content: center; }
+    .hud-col.left { align-items: stretch; order: 2; }
+    .hud-col.right { order: 3; }
+    .hud-col .stat::before { display: none; }
+    .hud-col.left .stat { text-align: left; }
+    .stat { min-width: 150px; }
+  }
+  @media (max-width: 600px) {
+    .bar { gap: 10px; }
+    nav { order: 3; width: 100%; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+    nav button { flex: none; }
+    .spacer { display: none; }
+    input[type=search] { flex: 1; width: auto; min-width: 0; }
+    .grid { grid-template-columns: 1fr; }
+    .reactor { width: 240px; height: 240px; }
+    .r5 { inset: 66px; } .r4 { inset: 46px; } .r3 { inset: 30px; }
+    .reactor .label { font-size: 16px; } .reactor .sub { bottom: 80px; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; } }
+</style>
+</head>
+<body>
+<header>
+  <div class="bar">
+    <div class="brand" data-tab="overview"><div class="mini-core"></div><h1>JARVIS</h1></div>
+    <nav id="tabs"></nav>
+    <div class="spacer"></div>
+    <input type="search" id="q" placeholder="> filtrer_" aria-label="Filtrer">
+    <button class="icon-btn" id="refresh" title="Recharger l'inventaire">↻</button>
+  </div>
+</header>
+<main id="app"><p class="empty">// initialisation des systèmes…</p></main>
+
+<script>window.JARVIS_DATA = {
+"generatedAt": "2026-10-21T14:42:46.635881+00:00",
+"account": {},
+"globalClaudeMd": null,
+"skills": [
+{
+"name": "algorithmic-art",
+"description": "Creating algorithmic art using p5.js with seeded randomness and interactive parameter exploration. Use this when users request creating art using code, generative art, algorithmic art, flow fields, or particle systems. Create original algorithmic art rather than copying existing artists' work to avoid copyright violations.",
+"source": "user",
+"path": "",
+"usageCount": 0,
+"lastUsedAt": null
+},
+{
+"name": "brand-guidelines",
+"description": "Applies Anthropic's official brand colors and typography to any sort of artifact that may benefit from having Anthropic's look-and-feel. Use it when brand colors or style guidelines, visual formatting, or company design standards apply.",
+"source": "user",
+"path": "",
+"usageCount": 0,
+"lastUsedAt": null
+},
+{
+"name": "canvas-design",
+"description": "Create beautiful visual art in .png and .pdf documents using design philosophy. You should use this skill when the user asks to create a poster, piece of art, design, or other static piece. Create original visual designs, never copying existing artists' work to avoid copyright violations.",
+"source": "user",
+"path": "",
+"usageCount": 0,
+"lastUsedAt": null
+},
+{
+"name": "doc-coauthoring",
+"description": "Guide users through a structured workflow for co-authoring documentation. Use when user wants to write documentation, proposals, technical specs, decision docs, or similar structured content. This workflow helps users efficiently transfer context, refine content through iteration, and verify the doc works for readers. Trigger when user mentions writing docs, creating proposals, drafting specs, or similar documentation tasks.",
+"source": "user",
+"path": "",
+"usageCount": 0,
+"lastUsedAt": null
+},
+{
+"name": "find-skills",
+"description": "Helps users discover and install agent skills when they ask questions like \"how do I do X\", \"find a skill for X\", \"is there a skill that can...\", or express interest in extending capabilities. This skill should be used when the user is looking for functionality that might exist as an installable skill.",
+"source": "user",
+"path": "",
+"usageCount": 0,
+"lastUsedAt": null
+},
+{
+"name": "frontend-design",
+"description": "Guidance for distinctive, intentional visual design when building new UI or reshaping an existing one. Helps with aesthetic direction, typography, and making choices that don't read as templated defaults.",
+"source": "user",
+"path": "",
+"usageCount": 0,
+"lastUsedAt": null
+},
+{
+"name": "graphify",
+"description": "Use for any question about a codebase, its architecture, file relationships, or project content — especially when graphify-out/ exists, where the question should be treated as a graphify query first. Turns any input (code, docs, papers, images, videos) into a persistent knowledge graph with god nodes, community detection, and query/path/explain tools.",
+"source": "user",
+"path": "",
+"usageCount": 0,
+"lastUsedAt": null
+},
+{
+"name": "internal-comms",
+"description": "A set of resources to help me write all kinds of internal communications, using the formats that my company likes to use. Claude should use this skill whenever asked to write some sort of internal communications (status reports, leadership updates, 3P updates, company newsletters, FAQs, incident reports, project updates, etc.).",
+"source": "user",
+"path": "",
+"usageCount": 0,
+"lastUsedAt": null
+},
+{
+"name": "mcp-builder",
+"description": "Guide for creating high-quality MCP (Model Context Protocol) servers that enable LLMs to interact with external services through well-designed tools. Use when building MCP servers to integrate external APIs or services, whether in Python (FastMCP) or Node/TypeScript (MCP SDK).",
+"source": "user",
+"path": "",
+"usageCount": 0,
+"lastUsedAt": null
+},
+{
+"name": "replica-architect",
+"description": "Plans the stack, database schema and API for an app clone, from the recon map replica-recon wrote. Picks boring, managed tech, turns the inferred data model into real SQL with indexes and access rules, lists every route by flow, and orders the build as a thin vertical slice first. Use when the user says \"plan the clone\", \"what stack should I use\", \"design the database\", \"write the schema\", \"plan the API\", \"architecture for my version of X\", or after /replica-recon finishes.",
+"source": "user",
+"path": "",
+"usageCount": 0,
+"lastUsedAt": null
+},
+{
+"name": "replica-backend",
+"description": "Builds the backend of an app clone: auth, database migrations and access rules, payments with Stripe, email, background jobs and third-party integrations through official APIs only, plus a security checklist. Use when the user says \"add login\", \"set up auth\", \"wire up the database\", \"add payments\", \"connect Stripe\", \"add Google Calendar\", \"send emails\", \"backend for my clone\", or when /replica-build is running on fake data.",
+"source": "user",
+"path": "",
+"usageCount": 0,
+"lastUsedAt": null
+},
+{
+"name": "replica-brand",
+"description": "Names and rebrands an app clone so it is the user's own: name candidates with the trademark, domain, store and handle checks to run, a new palette checked for contrast, a logo brief, a voice guide, and a sweep tool that finds anything of the original left in the codebase. Use when the user says \"name my app\", \"rebrand the clone\", \"make it mine\", \"pick a name and colours\", \"logo brief\", \"brand voice\", \"check for leftovers\", or after /replica-entrepreneur. Always runs before /replica-launch.",
+"source": "user",
+"path": "",
+"usageCount": 0,
+"lastUsedAt": null
+},
+{
+"name": "replica-build",
+"description": "Rebuilds an app screen by screen from the recon map: app shell first, then the core flow as a vertical slice, then every screen with all its states, ticking off the feature matrix as it goes. Writes every line fresh, never the original's code, assets or copy. Use when the user says \"build the clone\", \"build screen S07\", \"start building\", \"rebuild this screen\", \"implement the booking page\", or after /replica-design.",
+"source": "user",
+"path": "",
+"usageCount": 0,
+"lastUsedAt": null
+},
+{
+"name": "replica-deploy",
+"description": "Ships an app clone live on the user's own domain: a preflight gate (tests green, parity must-haves done, rebrand sweep clean, listing linted, legal pages up), production database and env vars, the host, DNS records for the domain and for email, Stripe live mode, OAuth redirects, monitoring, and mobile builds to TestFlight and Play. Use when the user says \"deploy it\", \"ship it\", \"put it live\", \"connect my domain\", \"go to production\", \"publish the app\", or after /replica-launch.",
+"source": "user",
+"path": "",
+"usageCount": 0,
+"lastUsedAt": null
+},
+{
+"name": "replica-design",
+"description": "Rebuilds an app's design system for a clone: colour roles, type scale, spacing, radius, shadows and every component with its states, as design tokens plus component specs, with original assets instead of the target's logos, icons, illustrations or licensed fonts. Includes a WCAG contrast checker. Use when the user says \"match the design\", \"rebuild the design system\", \"get the colours and fonts\", \"make it look like X\", \"design tokens for my clone\", or after /replica-architect.",
+"source": "user",
+"path": "",
+"usageCount": 0,
+"lastUsedAt": null
+},
+{
+"name": "replica-diff",
+"description": "Compares an app clone against the original: a feature parity score from the feature matrix (weighted by must, should, could) with the missing list in build order, plus a screenshot layout diff that ignores colour so a rebrand does not count against you. Two standard-library Python tools. Use when the user says \"how close is my clone\", \"compare it to the original\", \"what's missing\", \"parity check\", \"diff the screens\", \"is it ready\", or after /replica-test.",
+"source": "user",
+"path": "",
+"usageCount": 0,
+"lastUsedAt": null
+},
+{
+"name": "replica-entrepreneur",
+"description": "Researches the app being cloned and reads what its real users say in public reviews (App Store, Google Play, G2, Capterra, Trustpilot, Reddit, Hacker News, its own feature-request board), then ranks what they hate, what is missing and what is unsolved, turns it into a fix plan for the clone and a positioning angle you can sell. Every quote is real, verbatim and linked. Use when the user says \"what do people hate about X\", \"read the reviews\", \"how do I make mine better\", \"find the gap\", \"what features are missing\", \"how do I position this\", \"make it sellable\", or after /replica-diff.",
+"source": "user",
+"path": "",
+"usageCount": 0,
+"lastUsedAt": null
+},
+{
+"name": "replica-launch",
+"description": "Writes the launch for an app clone: the landing page built on the positioning angle, pricing set against the original's public pricing and its users' complaints, and the App Store and Google Play listing linted against the stores' limits and copycat rules. Use when the user says \"landing page\", \"pricing\", \"how much should I charge\", \"App Store listing\", \"store screenshots\", \"launch plan\", \"Product Hunt\", or after /replica-brand.",
+"source": "user",
+"path": "",
+"usageCount": 0,
+"lastUsedAt": null
+},
+{
+"name": "replica-recon",
+"description": "Reverse-engineers any app into a recon map: screen inventory, user flows, component list, inferred data model and a feature matrix, from public pages, screenshots, app store listings, help docs and the user's own account. The first step of the Replica pack. Use when the user says \"clone this app\", \"reverse engineer X\", \"how does X work\", \"map out X\", \"what screens does X have\", \"I want to build my own version of X\", \"copy this app\", or pastes an app's URL or App Store link and wants to rebuild it.",
+"source": "user",
+"path": "",
+"usageCount": 0,
+"lastUsedAt": null
+},
+{
+"name": "replica-test",
+"description": "Clicks through every flow of an app clone and tests it for bugs: a test plan generated from the recon flows with happy paths and edge cases, Playwright end-to-end tests where possible, a browser click-through where not, and bug reports in a fixed format with severity, steps and evidence. Use when the user says \"test my clone\", \"find bugs\", \"QA this\", \"click through everything\", \"write e2e tests\", \"does it work\", or after /replica-build or /replica-backend.",
+"source": "user",
+"path": "",
+"usageCount": 0,
+"lastUsedAt": null
+},
+{
+"name": "slack-gif-creator",
+"description": "Knowledge and utilities for creating animated GIFs optimized for Slack. Provides constraints, validation tools, and animation concepts. Use when users request animated GIFs for Slack like \"make me a GIF of X doing Y for Slack.",
+"source": "user",
+"path": "",
+"usageCount": 0,
+"lastUsedAt": null
+},
+{
+"name": "theme-factory",
+"description": "Toolkit for styling artifacts with a theme. These artifacts can be slides, docs, reportings, HTML landing pages, etc. There are 10 pre-set themes with colors/fonts that you can apply to any artifact that has been creating, or can generate a new theme on-the-fly.",
+"source": "user",
+"path": "",
+"usageCount": 0,
+"lastUsedAt": null
+},
+{
+"name": "web-artifacts-builder",
+"description": "Suite of tools for creating elaborate, multi-component claude.ai HTML artifacts using modern frontend web technologies (React, Tailwind CSS, shadcn/ui). Use for complex artifacts requiring state management, routing, or shadcn/ui components - not for simple single-file HTML/JSX artifacts.",
+"source": "user",
+"path": "",
+"usageCount": 0,
+"lastUsedAt": null
+},
+{
+"name": "webapp-testing",
+"description": "Toolkit for interacting with and testing local web applications using Playwright. Supports verifying frontend functionality, debugging UI behavior, capturing browser screenshots, and viewing browser logs.",
+"source": "user",
+"path": "",
+"usageCount": 0,
+"lastUsedAt": null
+},
+{
+"name": "claude-automation-recommender",
+"description": "Analyze a codebase and recommend Claude Code automations (hooks, subagents, skills, plugins, MCP servers). Use when user asks for automation recommendations, wants to optimize their Claude Code setup, mentions improving Claude Code workflows, asks how to first set up Claude Code for a project, or wants to know what Claude Code features they should use.",
+"source": "plugin:claude-code-setup",
+"path": "",
+"usageCount": 0,
+"lastUsedAt": null
+},
+{
+"name": "ponytail",
+"description": "Lazy senior dev mode: the smallest change that fully solves the task, and a reply a busy human understands in one read. Use on any coding task (writing, fixing, refactoring, reviewing, choosing dependencies) and when the user says \"ponytail\", \"be lazy\", \"simplest solution\", \"yagni\", or complains about over-engineering or bloat. Levels: lite, full (default), ultra.",
+"source": "plugin:ponytail",
+"path": "",
+"usageCount": 0,
+"lastUsedAt": null
+},
+{
+"name": "ponytail-audit",
+"description": "Quality audit of a whole repo: bugs, security holes, what breaks under real load, risky code without tests, slow paths, and what to delete, merge or split. Ranked, each finding explained in plain English. One-shot report, changes nothing. Use for \"audit this codebase\", \"review the whole repo\", \"find bloat\", \"what can I delete\", /ponytail-audit.",
+"source": "plugin:ponytail",
+"path": "",
+"usageCount": 0,
+"lastUsedAt": null
+},
+{
+"name": "ponytail-debt",
+"description": "List every `shortcut:` comment (and older `ponytail:` ones) as a debt ledger. One-shot report, changes nothing. Use for \"ponytail debt\", \"what did ponytail defer\", \"list the shortcuts\", /ponytail-debt.",
+"source": "plugin:ponytail",
+"path": "",
+"usageCount": 0,
+"lastUsedAt": null
+},
+{
+"name": "ponytail-gain",
+"description": "Show ponytail's measured savings (code, cost, speed) from the benchmark. One-shot display. Use for /ponytail-gain, \"what does ponytail save\", \"ponytail impact\".",
+"source": "plugin:ponytail",
+"path": "",
+"usageCount": 0,
+"lastUsedAt": null
+},
+{
+"name": "ponytail-help",
+"description": "Quick reference for ponytail levels, skills and commands. One-shot display. Use for /ponytail-help, \"ponytail help\", \"how do I use ponytail\".",
+"source": "plugin:ponytail",
+"path": "",
+"usageCount": 0,
+"lastUsedAt": null
+},
+{
+"name": "ponytail-review",
+"description": "Quality review of a change: is the logic right, is it safe, does it hold under real load, is risky code tested, is it fast enough, and is every line needed. Reads the connected code, not only the diff. Each finding is explained in plain English. Use for \"review this\", \"code review\", \"review the last commit\", \"review my PR\", \"is this over-engineered\", /ponytail-review.",
+"source": "plugin:ponytail",
+"path": "",
+"usageCount": 0,
+"lastUsedAt": null
+}
+],
+"agents": [],
+"commands": [],
+"plugins": [
+{
+"id": "claude-code-setup@claude-plugins-official",
+"version": "1.0.0",
+"scope": "user",
+"enabled": true,
+"installedAt": "2026-10-14T16:51:29.754Z",
+"skills": [
+"claude-automation-recommender"
+],
+"agents": [],
+"commands": []
+},
+{
+"id": "ponytail@ponytail",
+"version": "5.3.2",
+"scope": "user",
+"enabled": true,
+"installedAt": "2026-10-19T14:38:02.189Z",
+"skills": [
+"ponytail",
+"ponytail-audit",
+"ponytail-debt",
+"ponytail-gain",
+"ponytail-help",
+"ponytail-review"
+],
+"agents": [],
+"commands": []
+}
+],
+"marketplaces": [
+{
+"name": "claude-plugins-official",
+"url": "https://github.com/anthropics/claude-plugins-official.git",
+"lastUpdated": "2026-10-21T14:34:40.961Z"
+},
+{
+"name": "ponytail",
+"url": "DietrichGebert/ponytail",
+"lastUpdated": "2026-10-19T14:38:01.101Z"
+},
+{
+"name": "anthropic-agent-skills",
+"url": "anthropics/skills",
+"lastUpdated": "2026-10-21T14:34:41.761Z"
+}
+],
+"mcpServers": [
+{
+"name": "graphify",
+"scope": "user",
+"type": "stdio",
+"command": null,
+"argCount": 1,
+"url": null,
+"envKeys": [],
+"headerKeys": []
+}
+],
+"projects": [
+{
+"name": "angebote",
+"path": "",
+"exists": true,
+"hasClaudeMd": false,
+"git": {
+"branch": "main",
+"lastCommit": "2026-10-19T17:43:41+02:00 Knopf «Preis hinzufügen»: Strichcode scannen, per WhatsApp schicken"
+},
+"links": [
+{
+"label": "Site web",
+"url": "https://gauthierdesmaizieres-sketch.github.io/angebote/",
+"kind": "web"
+},
+{
+"label": "GitHub",
+"url": "https://github.com/gauthierdesmaizieres-sketch/angebote",
+"kind": "repo"
+},
+{
+"label": "Changelog",
+"url": "https://github.com/gauthierdesmaizieres-sketch/angebote/commits",
+"kind": "changelog"
+},
+{
+"label": "Actions",
+"url": "https://github.com/gauthierdesmaizieres-sketch/angebote/actions",
+"kind": "ci"
+}
+],
+"mcpServers": [],
+"skills": [],
+"agents": [],
+"commands": [],
+"sessionCount": 2,
+"sessions": []
+},
+{
+"name": "Changelog Github",
+"path": "",
+"exists": true,
+"hasClaudeMd": false,
+"git": null,
+"links": [],
+"mcpServers": [],
+"skills": [],
+"agents": [],
+"commands": [],
+"sessionCount": 1,
+"sessions": []
+},
+{
+"name": "Cooking App",
+"path": "",
+"exists": true,
+"hasClaudeMd": true,
+"git": {
+"branch": "publish",
+"lastCommit": "2026-10-21T14:45:31+02:00 docs: CLAUDE.md with stack, local run, tests and deploy notes for future sessions"
+},
+"links": [
+{
+"label": "Site web",
+"url": "https://gauthierdesmaizieres-sketch.github.io/cooking-app/",
+"kind": "web"
+},
+{
+"label": "GitHub",
+"url": "https://github.com/gauthierdesmaizieres-sketch/cooking-app",
+"kind": "repo"
+},
+{
+"label": "Changelog",
+"url": "https://github.com/gauthierdesmaizieres-sketch/cooking-app/commits",
+"kind": "changelog"
+},
+{
+"label": "Actions",
+"url": "https://github.com/gauthierdesmaizieres-sketch/cooking-app/actions",
+"kind": "ci"
+}
+],
+"mcpServers": [],
+"skills": [],
+"agents": [],
+"commands": [],
+"sessionCount": 2,
+"sessions": []
+},
+{
+"name": "Filter",
+"path": "",
+"exists": true,
+"hasClaudeMd": false,
+"git": null,
+"links": [],
+"mcpServers": [],
+"skills": [],
+"agents": [],
+"commands": [],
+"sessionCount": 1,
+"sessions": []
+},
+{
+"name": "fitness-app",
+"path": "",
+"exists": true,
+"hasClaudeMd": false,
+"git": {
+"branch": "main",
+"lastCommit": "2026-10-20T16:43:39+02:00 Anime-style exercise images: local generator and first 10 exercises"
+},
+"links": [
+{
+"label": "Site web",
+"url": "https://gauthierdesmaizieres-sketch.github.io/fitness-app/",
+"kind": "web"
+},
+{
+"label": "GitHub",
+"url": "https://github.com/gauthierdesmaizieres-sketch/fitness-app",
+"kind": "repo"
+},
+{
+"label": "Changelog",
+"url": "https://github.com/gauthierdesmaizieres-sketch/fitness-app/commits",
+"kind": "changelog"
+},
+{
+"label": "Actions",
+"url": "https://github.com/gauthierdesmaizieres-sketch/fitness-app/actions",
+"kind": "ci"
+}
+],
+"mcpServers": [],
+"skills": [],
+"agents": [],
+"commands": [],
+"sessionCount": 1,
+"sessions": []
+},
+{
+"name": "Jarvis",
+"path": "",
+"exists": true,
+"hasClaudeMd": false,
+"git": {
+"branch": "links/cooking-app",
+"lastCommit": "2026-10-21T07:15:13+02:00 links: Cooking App local mail catcher"
+},
+"links": [],
+"mcpServers": [],
+"skills": [],
+"agents": [],
+"commands": [],
+"sessionCount": 1,
+"sessions": []
+},
+{
+"name": "Synapse",
+"path": "",
+"exists": true,
+"hasClaudeMd": false,
+"git": {
+"branch": "main",
+"lastCommit": "2026-10-19T17:06:47+02:00 Résumés IA : réessais et modèles de secours sur erreur 503, actions Node 24"
+},
+"links": [
+{
+"label": "Site web",
+"url": "https://gauthierdesmaizieres-sketch.github.io/Synapse/",
+"kind": "web"
+},
+{
+"label": "GitHub",
+"url": "https://github.com/gauthierdesmaizieres-sketch/Synapse",
+"kind": "repo"
+},
+{
+"label": "Changelog",
+"url": "https://github.com/gauthierdesmaizieres-sketch/Synapse/commits",
+"kind": "changelog"
+},
+{
+"label": "Actions",
+"url": "https://github.com/gauthierdesmaizieres-sketch/Synapse/actions",
+"kind": "ci"
+}
+],
+"mcpServers": [],
+"skills": [],
+"agents": [],
+"commands": [],
+"sessionCount": 1,
+"sessions": []
+},
+{
+"name": "Touches Filantes",
+"path": "",
+"exists": true,
+"hasClaudeMd": false,
+"git": null,
+"links": [
+{
+"label": "Synthesia · Site web",
+"url": "https://gauthierdesmaizieres-sketch.github.io/Synthesia/",
+"kind": "web"
+},
+{
+"label": "Synthesia · GitHub",
+"url": "https://github.com/gauthierdesmaizieres-sketch/Synthesia",
+"kind": "repo"
+},
+{
+"label": "Synthesia · Changelog",
+"url": "https://github.com/gauthierdesmaizieres-sketch/Synthesia/commits",
+"kind": "changelog"
+}
+],
+"mcpServers": [],
+"skills": [],
+"agents": [],
+"commands": [],
+"sessionCount": 3,
+"sessions": []
+}
+],
+"scratchSessionCount": 7
+};</script>
+<script>
+const TABS = [
+  ["overview", "Accueil"], ["projects", "Projets"], ["skills", "Skills"],
+  ["mcp", "MCP"], ["plugins", "Plugins"], ["config", "Config"], ["roadmap", "Évolutions"],
+];
+const ROADMAP = [
+  { v: "v1", title: "Inventaire", status: "En ligne", live: true, items: [
+    ["Projets & sessions", "Activité, état git, premiers prompts"],
+    ["Skills, agents, commandes", "Utilisateur, plugins et projets, avec stats d'usage"],
+    ["Serveurs MCP & plugins", "Sans jamais exposer les secrets"],
+    ["Config globale", "Compte, CLAUDE.md, marketplaces"],
+  ]},
+  { v: "v2", title: "Actions", status: "Prévu", items: [
+    ["Ouvrir un projet", "Dans l'éditeur ou l'explorateur en un clic"],
+    ["Lancer Claude dans un projet", "Nouvelle session directement depuis la carte"],
+    ["Reprendre une session", "claude --resume sur une session listée"],
+    ["Activer / désactiver", "Serveurs MCP et plugins, avec confirmation"],
+    ["Git rapide", "Statut, pull, dernier commit par projet"],
+  ]},
+  { v: "v3", title: "Cerveau", status: "Prévu", items: [
+    ["Chat intégré", "Via le Claude Agent SDK, avec tous tes skills et MCP"],
+    ["Routage intelligent", "Jarvis choisit le projet et le skill adaptés à la demande"],
+    ["Mémoire", "Se souvient de tes préférences et de l'état des projets"],
+    ["Tâches planifiées", "Brief du matin, veille, rappels"],
+  ]},
+  { v: "v4", title: "Voix", status: "Prévu", items: [
+    ["Mot d'éveil « Jarvis »", "Écoute locale, sans envoi en continu"],
+    ["Reconnaissance vocale", "Whisper en local"],
+    ["Synthèse vocale", "Réponses parlées"],
+    ["Mode HUD", "Plein écran ou overlay, raccourci clavier global"],
+  ]},
+];
+
+// Set by snapshot.py in the online copy, which works without the PC.
+const SNAPSHOT = window.JARVIS_DATA || null;
+let data = null, tab = "overview", query = "";
+// localhost links only make sense on the PC that serves them.
+const visibleLinks = p => (p.links || []).filter(l => !(SNAPSHOT && l.kind === "local"));
+
+function quickAccess() {
+  const items = data.projects.flatMap(p => visibleLinks(p)
+    .filter(l => l.kind === "web" || l.kind === "custom" || (l.kind === "local" && !SNAPSHOT))
+    .map(l => ({ ...l, project: p.name })));
+  if (!items.length) return "";
+  return `<h2>Accès rapide <span class="count">[${items.length}]</span></h2><div class="quick">${items.map(l =>
+    `<a class="quick-item ${l.kind}" href="${esc(l.url)}" target="_blank" rel="noopener">
+       <b>${esc(l.project)}</b><small>${esc(l.label.replace(/^.*· /, ""))} ↗</small></a>`).join("")}</div>`;
+}
+try { tab = localStorage.getItem("jarvis.tab") || tab; } catch {}
+
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const ago = iso => {
+  if (!iso) return "—";
+  const s = (Date.now() - new Date(iso)) / 1000;
+  if (s < 3600) return `il y a ${Math.max(1, Math.round(s / 60))} min`;
+  if (s < 86400) return `il y a ${Math.round(s / 3600)} h`;
+  return `il y a ${Math.round(s / 86400)} j`;
+};
+const match = (...fields) => !query || fields.join(" ").toLowerCase().includes(query);
+const chip = (t, cls = "") => `<span class="chip ${cls}">${esc(t)}</span>`;
+
+function renderTabs() {
+  document.getElementById("tabs").innerHTML = TABS.map(([id, label]) =>
+    `<button data-tab="${id}" class="${id === tab ? "active" : ""}">${label}</button>`).join("");
+}
+
+function setTab(t) {
+  tab = t;
+  try { localStorage.setItem("jarvis.tab", t); } catch {}
+  render();
+}
+
+function section(title, items, empty = "// rien ici") {
+  return `<h2>${title} <span class="count">[${items.length}]</span></h2>` +
+    (items.length ? `<div class="grid">${items.join("")}</div>` : `<p class="empty">${empty}</p>`);
+}
+
+function projectCard(p) {
+  const g = p.git;
+  const chips = [
+    p.exists ? "" : chip("dossier introuvable", "warn"),
+    g ? chip(`git · ${g.branch}`, "accent") : chip("pas de git"),
+    g && g.dirtyFiles ? chip(`${g.dirtyFiles} modif.`, "warn") : "",
+    p.hasClaudeMd ? chip("CLAUDE.md", "ok") : "",
+    p.mcpServers.length ? chip(`${p.mcpServers.length} MCP`) : "",
+    p.skills.length ? chip(`${p.skills.length} skills`) : "",
+    chip(`${p.sessionCount} session${p.sessionCount > 1 ? "s" : ""}`),
+  ].join("");
+  const links = visibleLinks(p).map(l =>
+    `<a class="link ${l.kind}" href="${esc(l.url)}" target="_blank" rel="noopener" title="${esc(l.url)}">${esc(l.label)}</a>`).join("");
+  const sessions = p.sessions.filter(s => s.firstPrompt).slice(0, 3).map(s =>
+    `<li><time>${ago(s.updatedAt)} · ${s.sizeKb} Ko</time>${esc(s.firstPrompt)}</li>`).join("");
+  return `<div class="card">
+    <h3>${esc(p.name)}</h3>
+    <div class="path">${esc(p.path)}</div>
+    <div class="row">${chips}</div>
+    ${links ? `<div class="links">${links}</div>` : ""}
+    <p>${p.lastActivity !== undefined ? `Dernière activité : ${ago(p.lastActivity)}` : ""}${g && g.lastCommit ? ` · dernier commit : ${esc(g.lastCommit.split(" ").slice(1).join(" "))}` : ""}</p>
+    ${sessions ? `<ul class="sessions">${sessions}</ul>` : ""}
+  </div>`;
+}
+
+function itemCard(s) {
+  const used = s.usageCount ? chip(`utilisé ${s.usageCount}× · ${ago(s.lastUsedAt)}`, "ok") : "";
+  return `<div class="card" data-expand>
+    <h3>${esc(s.name)} ${chip(s.source, s.source === "user" ? "accent" : "")} ${used}</h3>
+    <p class="desc">${esc(s.description) || "<i>Pas de description</i>"}</p>
+  </div>`;
+}
+
+function mcpCard(m) {
+  const target = m.url || [m.command, m.argCount ? `+${m.argCount} arg` : ""].filter(Boolean).join(" ");
+  const keys = [...m.envKeys.map(k => `env:${k}`), ...m.headerKeys.map(k => `header:${k}`)];
+  return `<div class="card">
+    <h3>${esc(m.name)} ${chip(m.type)} ${chip(m.scope, "accent")} ${m.project ? chip(m.project) : ""}</h3>
+    <div class="path">${esc(target)}</div>
+    ${keys.length ? `<div class="row">${keys.map(k => chip(k)).join("")}</div>` : ""}
+  </div>`;
+}
+
+function pluginCard(p) {
+  const parts = [...p.skills.map(s => `skill:${s}`), ...p.commands.map(c => `/${c}`), ...p.agents.map(a => `agent:${a}`)];
+  return `<div class="card">
+    <h3>${esc(p.id)} ${chip(`v${p.version}`)} ${chip(p.enabled ? "activé" : "désactivé", p.enabled ? "ok" : "warn")}</h3>
+    <p>Installé ${ago(p.installedAt)} · portée ${esc(p.scope)}</p>
+    <div class="row">${parts.map(x => chip(x)).join("")}</div>
+  </div>`;
+}
+
+function roadmapView() {
+  const phases = ROADMAP.filter(ph => match(ph.v, ph.title, ...ph.items.flat())).map(ph => `
+    <div class="phase ${ph.live ? "live" : ""}">
+      <div class="node"></div>
+      <div class="card">
+        <h3>${ph.v} · ${esc(ph.title)} ${chip(ph.status, ph.live ? "ok" : "accent")}</h3>
+        <ul>${ph.items.map(([t, d]) => `<li>${esc(t)}<small>${esc(d)}</small></li>`).join("")}</ul>
+      </div>
+    </div>`).join("");
+  return `<h2>Évolutions <span class="count">[v1 → v4]</span></h2><div class="roadmap">${phases}</div>`;
+}
+
+function allMcp() {
+  return [
+    ...data.mcpServers,
+    ...data.projects.flatMap(p => p.mcpServers.map(m => ({ ...m, project: p.name }))),
+  ];
+}
+
+function allSkills() {
+  return [...data.skills, ...data.projects.flatMap(p => p.skills.map(s => ({ ...s, source: `projet:${p.name}` })))];
+}
+
+function render() {
+  renderTabs();
+  const app = document.getElementById("app");
+  if (tab === "roadmap") { app.innerHTML = roadmapView(); return; }
+  if (!data) return;
+  const projects = data.projects.filter(p => match(p.name, p.path, ...p.sessions.map(s => s.firstPrompt || "")));
+  const skills = allSkills().filter(s => match(s.name, s.description, s.source));
+  const mcp = allMcp().filter(m => match(m.name, m.command || "", m.url || "", m.scope));
+  const plugins = data.plugins.filter(p => match(p.id, ...p.skills, ...p.commands, ...p.agents));
+  const extras = [...data.agents, ...data.commands].filter(s => match(s.name, s.description, s.source));
+  let html = "";
+
+  if (tab === "overview") {
+    const totalSessions = data.projects.reduce((n, p) => n + p.sessionCount, 0) + data.scratchSessionCount;
+    const stat = (t, n, l) => `<div class="stat" data-goto="${t}"><b>${n}</b><small>${l}</small></div>`;
+    html += `<section class="hero">
+      <div class="hud-col left">
+        ${stat("projects", data.projects.length, "projets")}
+        ${stat("skills", allSkills().length, "skills")}
+        ${stat("projects", totalSessions, "sessions")}
+      </div>
+      <div class="reactor" aria-hidden="true">
+        <div class="ring r1"></div><div class="ring r2"></div><div class="ring r3"></div>
+        <div class="ring r4"></div><div class="ring r5"></div>
+        <div class="label">J.A.R.V.I.S</div>
+        <div class="sub">v1 · ONLINE</div>
+      </div>
+      <div class="hud-col right">
+        ${stat("mcp", allMcp().length, "serveurs MCP")}
+        ${stat("plugins", data.plugins.length, "plugins")}
+        ${stat("roadmap", ROADMAP.length - 1, "évolutions prévues")}
+      </div>
+    </section>
+    <div class="status-line"><span class="dot"></span>${SNAPSHOT
+      ? `INSTANTANÉ EN LIGNE · MIS À JOUR ${esc(ago(data.generatedAt).toUpperCase())}`
+      : "TOUS LES SYSTÈMES OPÉRATIONNELS"} · ${esc(data.account.email || "")}</div>`;
+    html += quickAccess();
+    html += section("Projets récents", projects.slice(0, 4).map(projectCard));
+    const recentSkills = [...skills].filter(s => s.usageCount).sort((a, b) => (b.lastUsedAt || "").localeCompare(a.lastUsedAt || ""));
+    html += section("Skills utilisés récemment", recentSkills.map(itemCard), "// aucun skill utilisé pour l'instant");
+  } else if (tab === "projects") {
+    html += section("Projets", projects.map(projectCard));
+    html += `<p class="note">${data.scratchSessionCount} sessions « sans dossier » ne sont pas listées ici.</p>`;
+  } else if (tab === "skills") {
+    html += section("Skills", skills.map(itemCard));
+    html += section("Agents & commandes", extras.map(itemCard), "// aucun agent ni commande personnalisés");
+  } else if (tab === "mcp") {
+    html += section("Serveurs MCP", mcp.map(mcpCard));
+    html += `<p class="note">Les connecteurs de l'app Claude (Docs, Chrome, navigateur intégré…) sont gérés par l'app et n'apparaissent pas dans ces fichiers. Les valeurs secrètes (env, headers, query string) ne sont jamais lues.</p>`;
+  } else if (tab === "plugins") {
+    html += section("Plugins", plugins.map(pluginCard));
+    html += section("Marketplaces", data.marketplaces.filter(m => match(m.name, m.url || "")).map(m =>
+      `<div class="card"><h3>${esc(m.name)}</h3><div class="path">${esc(m.url)}</div><p>Mis à jour ${ago(m.lastUpdated)}</p></div>`));
+  } else if (tab === "config") {
+    html += `<h2>Compte</h2><div class="grid"><div class="card">
+      <h3>${esc(data.account.email || "—")}</h3>
+      <div class="row">${chip(`install : ${data.account.installMethod || "?"}`)}${chip(`mises à jour : ${data.account.autoUpdatesChannel || "?"}`)}</div>
+    </div></div>`;
+    html += `<h2>CLAUDE.md global</h2>` + (data.globalClaudeMd ? `<pre>${esc(data.globalClaudeMd)}</pre>` : `<p class="empty">// aucun</p>`);
+  }
+  html += `<p class="note" style="margin-top:28px">// inventaire généré ${ago(data.generatedAt)} · lecture seule</p>`;
+  app.innerHTML = html;
+}
+
+async function load() {
+  const app = document.getElementById("app");
+  if (SNAPSHOT) { data = SNAPSHOT; render(); return; }
+  try {
+    const r = await fetch("/api/inventory");
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    data = await r.json();
+    render();
+  } catch (e) {
+    app.innerHTML = `<p class="empty">// échec du chargement de l'inventaire : ${esc(e.message)}</p>`;
+  }
+}
+
+document.addEventListener("click", e => {
+  const t = e.target.closest("[data-tab]");
+  if (t) return setTab(t.dataset.tab);
+  const g = e.target.closest("[data-goto]");
+  if (g) return setTab(g.dataset.goto);
+  const c = e.target.closest("[data-expand]");
+  if (c) c.classList.toggle("open");
+});
+document.getElementById("q").addEventListener("input", e => { query = e.target.value.trim().toLowerCase(); render(); });
+document.getElementById("refresh").addEventListener("click", load);
+document.getElementById("refresh").hidden = !!SNAPSHOT;
+renderTabs();
+load();
+</script>
+</body>
+</html>

@@ -300,7 +300,7 @@ function projectCard(p) {
     <div class="path">${esc(p.path)}</div>
     <div class="row">${chips}</div>
     ${links ? `<div class="links">${links}</div>` : ""}
-    <p>Dernière activité : ${ago(p.lastActivity)}${g && g.lastCommit ? ` · dernier commit : ${esc(g.lastCommit.split(" ").slice(1).join(" "))}` : ""}</p>
+    <p>${p.lastActivity !== undefined ? `Dernière activité : ${ago(p.lastActivity)}` : ""}${g && g.lastCommit ? ` · dernier commit : ${esc(g.lastCommit.split(" ").slice(1).join(" "))}` : ""}</p>
     ${sessions ? `<ul class="sessions">${sessions}</ul>` : ""}
   </div>`;
 }

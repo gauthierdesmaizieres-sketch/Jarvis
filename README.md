@@ -37,6 +37,12 @@ python snapshot.py
 
 Puis demander à Claude de republier `dist/jarvis.html` sur cette URL (« mets à jour Jarvis en ligne »).
 
+### Version publique automatique (GitHub Pages, 0 token)
+
+`python publish.py` régénère `docs/index.html` avec `snapshot.py --public`, puis le commite et le pousse, seulement si quelque chose a changé : un projet, un lien, un skill, un MCP ou un commit. Un hook Claude Code le lance à la fin de chaque réponse de Claude, donc la page en ligne se met à jour toute seule, sans demande à Claude.
+
+Cette version est publique et filtrée. Elle ne contient ni email, ni chemins, ni prompts de session, ni CLAUDE.md, ni détails des serveurs MCP, ni liens locaux.
+
 ### Liens des projets
 
 Chaque carte projet affiche ses liens, détectés automatiquement :
