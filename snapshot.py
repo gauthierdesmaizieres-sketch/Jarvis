@@ -25,7 +25,7 @@ GENERATED_RE = re.compile(r'"generatedAt": "[^"]*"')
 SKELETON = [
     "<!doctype html>\n", '<html lang="fr">\n', "</html>\n", "<head>\n", "</head>\n",
     "<body>\n", "</body>\n", '<meta charset="utf-8">\n',
-    '<meta name="viewport" content="width=device-width, initial-scale=1">\n',
+    '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">\n',
 ]
 
 
@@ -60,7 +60,17 @@ def public_view(data):
 def render(data, public):
     html = SRC.read_text(encoding="utf-8")
     if public:
-        html = html.replace("<title>Jarvis</title>", '<title>Jarvis</title>\n<meta name="robots" content="noindex">')
+        # Installable on the phone's home screen; manifest and icons live next to the page in docs/.
+        html = html.replace("<title>Jarvis</title>", """<title>Jarvis</title>
+<meta name="robots" content="noindex">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#03070d">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Jarvis">""")
     else:
         for tag in SKELETON:
             html = html.replace(tag, "")
