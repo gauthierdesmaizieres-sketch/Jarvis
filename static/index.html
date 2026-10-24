@@ -138,7 +138,8 @@
                 color: var(--text); background: rgba(63,216,255,.08); border: 1px solid rgba(63,216,255,.5);
                 clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 12px 100%, 0 calc(100% - 12px));
                 transition: background .2s, box-shadow .2s; }
-  .quick-item b { font: 600 15px var(--display); letter-spacing: .08em; }
+  .quick-item b { font: 600 15px var(--display); letter-spacing: .08em; display: flex; align-items: center; gap: 8px; }
+  .app-icon { width: 26px; height: 26px; border-radius: 50%; flex: none; }
   .quick-item small { font: 12px var(--mono); color: var(--cyan); letter-spacing: .1em; text-transform: uppercase; }
   .quick-item:hover, .quick-item:focus-visible { background: rgba(63,216,255,.2); box-shadow: var(--glow); outline: none; }
   .quick-item.local { border-color: rgba(255,181,71,.45); background: rgba(255,181,71,.06); }
@@ -245,11 +246,11 @@ const visibleLinks = p => (p.links || []).filter(l => !(SNAPSHOT && l.kind === "
 function quickAccess() {
   const items = data.projects.flatMap(p => visibleLinks(p)
     .filter(l => l.kind === "web" || l.kind === "custom" || (l.kind === "local" && !SNAPSHOT))
-    .map(l => ({ ...l, project: p.name })));
+    .map(l => ({ ...l, project: p.name, icon: p.icon })));
   if (!items.length) return "";
   return `<h2>Accès rapide <span class="count">[${items.length}]</span></h2><div class="quick">${items.map(l =>
     `<a class="quick-item ${l.kind}" href="${esc(l.url)}" target="_blank" rel="noopener">
-       <b>${esc(l.project)}</b><small>${esc(l.label.replace(/^.*· /, ""))} ↗</small></a>`).join("")}</div>`;
+       <b>${appIcon(l)}${esc(l.project)}</b><small>${esc(l.label.replace(/^.*· /, ""))} ↗</small></a>`).join("")}</div>`;
 }
 try { tab = localStorage.getItem("jarvis.tab") || tab; } catch {}
 
@@ -262,6 +263,7 @@ const ago = iso => {
   return `il y a ${Math.round(s / 86400)} j`;
 };
 const match = (...fields) => !query || fields.join(" ").toLowerCase().includes(query);
+const appIcon = x => x.icon ? `<img class="app-icon" src="${esc(x.icon)}" alt="">` : "";
 const chip = (t, cls = "") => `<span class="chip ${cls}">${esc(t)}</span>`;
 
 function renderTabs() {
@@ -296,7 +298,7 @@ function projectCard(p) {
   const sessions = p.sessions.filter(s => s.firstPrompt).slice(0, 3).map(s =>
     `<li><time>${ago(s.updatedAt)} · ${s.sizeKb} Ko</time>${esc(s.firstPrompt)}</li>`).join("");
   return `<div class="card">
-    <h3>${esc(p.name)}</h3>
+    <h3>${appIcon(p)}${esc(p.name)}</h3>
     <div class="path">${esc(p.path)}</div>
     <div class="row">${chips}</div>
     ${links ? `<div class="links">${links}</div>` : ""}

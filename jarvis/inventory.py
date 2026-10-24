@@ -4,6 +4,7 @@ Nothing in this module writes to disk. Secrets are never returned: MCP server
 env values, headers and URL query strings are dropped, only their names are kept.
 """
 
+import base64
 import json
 import os
 import re
@@ -171,6 +172,26 @@ def _sessions_for(project_path):
     return out
 
 
+CWD_RE = re.compile(r'"cwd":"((?:[^"\\]|\\.)*)"')
+
+
+def _session_cwds():
+    """Project folders read from session logs: Claude Code only adds a new folder
+    to ~/.claude.json some time after its first session."""
+    root = CLAUDE_DIR / "projects"
+    out = set()
+    for d in root.iterdir() if root.is_dir() else []:
+        if SCRATCH_MARKER in d.name:
+            continue
+        for jsonl in d.glob("*.jsonl"):
+            with open(jsonl, encoding="utf-8", errors="replace") as f:
+                m = next((m for line in f if (m := CWD_RE.search(line))), None)
+            if m:
+                out.add(json.loads(f'"{m.group(1)}"'))
+                break
+    return out
+
+
 def _git_info(path):
     if not (path / ".git").exists():
         return None
@@ -247,6 +268,25 @@ def _project_links(path, name):
     return unique
 
 
+ICON_DIRS = ("", "public", "docs")
+ICON_FILES = ("favicon.svg", "icon.svg", "icon-192.png")
+
+
+def _icon(path):
+    """App icon as a data URI (works offline and on the public page), from the
+    project or a git repo nested one level down."""
+    roots = [path] + [s for s in sorted(path.iterdir())
+                      if s.is_dir() and not s.name.startswith(".") and (s / ".git").exists()]
+    for root in roots:
+        for d in ICON_DIRS:
+            for f in ICON_FILES:
+                file = root / d / f
+                if file.is_file():
+                    mime = "image/svg+xml" if f.endswith(".svg") else "image/png"
+                    return f"data:{mime};base64,{base64.b64encode(file.read_bytes()).decode()}"
+    return None
+
+
 def _project(path_str, cfg):
     path = Path(path_str)
     exists = path.is_dir()
@@ -262,6 +302,7 @@ def _project(path_str, cfg):
         "hasClaudeMd": exists and ((path / "CLAUDE.md").is_file() or (path / ".claude" / "CLAUDE.md").is_file()),
         "git": _git_info(path) if exists else None,
         "links": _project_links(path, path.name) if exists else [],
+        "icon": _icon(path) if exists else None,
         "mcpServers": mcp,
         "skills": _skills_in(path / ".claude" / "skills", "project") if exists else [],
         "agents": _md_items_in(path / ".claude" / "agents", "project") if exists else [],
@@ -314,10 +355,16 @@ def collect():
         s["usageCount"] = u.get("usageCount", 0)
         s["lastUsedAt"] = _iso(u.get("lastUsedAt"))
 
+    known = dict(claude_json.get("projects") or {})
+    seen = {str(Path(p)).lower() for p in known}
+    for cwd in _session_cwds():
+        if str(Path(cwd)).lower() not in seen:
+            known[cwd] = {}
     projects = [
         _project(p, cfg or {})
-        for p, cfg in (claude_json.get("projects") or {}).items()
-        if SCRATCH_MARKER not in p and Path(p) != HOME / ".local" / "bin"
+        for p, cfg in known.items()
+        if SCRATCH_MARKER not in p and Path(p) not in (HOME / ".local" / "bin", HOME / "Documents")
+        and Path(p).is_dir()  # renamed or deleted folders stay in ~/.claude.json
     ]
     projects.sort(key=lambda p: p["lastActivity"] or "", reverse=True)
 
