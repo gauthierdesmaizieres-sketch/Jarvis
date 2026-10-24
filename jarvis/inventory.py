@@ -304,6 +304,7 @@ def _project(path_str, cfg):
         "links": _project_links(path, path.name) if exists else [],
         "icon": _icon(path) if exists else None,
         "mcpServers": mcp,
+        "disabledMcp": (cfg.get("disabledMcpServers") or []) + (cfg.get("disabledMcpjsonServers") or []),
         "skills": _skills_in(path / ".claude" / "skills", "project") if exists else [],
         "agents": _md_items_in(path / ".claude" / "agents", "project") if exists else [],
         "commands": _md_items_in(path / ".claude" / "commands", "project") if exists else [],

@@ -2,7 +2,7 @@
 
 Une interface unique pour tout ce qui est installé dans Claude Code : projets, sessions, skills, serveurs MCP, plugins et config.
 
-## v1 : dashboard local en lecture seule
+## Dashboard local (v1 inventaire + v2 actions)
 
 ```bash
 python server.py
@@ -10,7 +10,7 @@ python server.py
 
 Puis ouvrir http://127.0.0.1:7777. Aucune dépendance (Python 3.10+ standard).
 
-Ce qui est lu (jamais écrit) :
+Ce qui est lu :
 
 | Source | Contenu |
 | --- | --- |
@@ -21,6 +21,22 @@ Ce qui est lu (jamais écrit) :
 | `~/.claude/projects/` | sessions par projet (date, taille, premier prompt) |
 | `<projet>/.mcp.json`, `<projet>/.claude/` | MCP, skills, agents et commandes du projet |
 | `%APPDATA%/Claude/claude_desktop_config.json` | serveurs MCP de l'app desktop |
+
+### Actions (v2, sur le PC uniquement)
+
+Sur chaque carte projet du dashboard local :
+
+- **Dossier** / **Éditeur** : ouvre le projet dans l'explorateur Windows ou dans VS Code ;
+- **Claude ▶** : lance une nouvelle session Claude Code dans un terminal ;
+- **Reprendre** (sur une session listée) : `claude --resume <id>` dans un terminal ;
+- **Git statut** / **Git pull** (`--ff-only`, avec confirmation) : le résultat s'affiche en bas à droite ;
+- **MCP … · on/off** : active ou désactive un serveur MCP pour ce projet (comme `/mcp` dans Claude Code).
+
+Dans l'onglet Plugins, **Activer / Désactiver** change `enabledPlugins` dans `~/.claude/settings.json`.
+
+Les seules écritures de Jarvis sont ces deux interrupteurs. Chacun demande une confirmation dans la page, garde une copie `*.jarvis.bak` du fichier d'avant, et prend effet à la prochaine session Claude Code. Le MCP coupé est noté dans `~/.claude.json`, dans le projet : `disabledMcpjsonServers` pour un serveur du `.mcp.json`, `disabledMcpServers` pour les autres.
+
+Sécurité des actions : `POST /api/action` n'accepte que les requêtes dont `Host` et `Origin` sont `127.0.0.1`/`localhost` sur le port de Jarvis et qui portent le jeton aléatoire que le serveur met dans la page à chaque démarrage. Une action ne vise qu'un projet déjà connu de Claude Code, jamais un chemin libre. Les copies hors ligne (Artifact, GitHub Pages) n'ont pas de jeton : aucun bouton d'action n'y apparaît.
 
 ### Version en ligne (téléphone, PC éteint)
 
@@ -65,6 +81,5 @@ Limite connue : les connecteurs gérés par l'app Claude (Docs, Chrome, navigate
 
 ## Pistes pour la suite
 
-- v2 : actions (ouvrir un projet dans l'éditeur, lancer `claude` dans un projet, reprendre une session, activer/désactiver un MCP)
 - v3 : chat intégré via le Claude Agent SDK, avec tous les skills et MCP disponibles
 - v4 : voix (wake word, STT/TTS)

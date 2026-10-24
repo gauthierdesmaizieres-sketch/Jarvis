@@ -142,6 +142,17 @@
   .link.local { color: var(--warn); border-color: rgba(255,181,71,.45); }
   .link.local:hover { background: var(--warn); color: var(--bg); }
   .link.local::after { content: " · PC"; opacity: .7; }
+  .act { font: 600 11px var(--display); letter-spacing: .08em; text-transform: uppercase; cursor: pointer;
+         color: var(--text); background: rgba(63,216,255,.06); border: 1px solid var(--line); padding: 4px 9px;
+         clip-path: polygon(6px 0, 100% 0, calc(100% - 6px) 100%, 0 100%); transition: background .2s, color .2s; }
+  .act:hover { background: var(--cyan); color: var(--bg); box-shadow: var(--glow); }
+  .act.on { color: var(--ok); border-color: rgba(77,255,184,.45); }
+  .act.off { color: var(--warn); border-color: rgba(255,181,71,.45); }
+  .act:disabled { opacity: .5; cursor: wait; }
+  ul.sessions .act { float: right; margin-left: 8px; }
+  #out { position: fixed; z-index: 6; right: 16px; bottom: 16px; width: min(520px, calc(100% - 32px)); margin: 0;
+         max-height: 40vh; overflow: auto; background: rgba(3, 7, 13, .94); border-color: var(--cyan); box-shadow: var(--glow); }
+  #out button { float: right; }
   .quick { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 12px; }
   .quick-item { display: flex; flex-direction: column; gap: 2px; padding: 14px 16px; text-decoration: none;
                 color: var(--text); background: rgba(63,216,255,.08); border: 1px solid rgba(63,216,255,.5);
@@ -211,10 +222,11 @@
     <button class="icon-btn" id="refresh" title="Recharger l'inventaire">↻</button>
   </div>
 </header>
+<pre id="out" hidden></pre>
 <main id="app"><p class="empty">// initialisation des systèmes…</p></main>
 
 <script>window.JARVIS_DATA = {
-"generatedAt": "2026-10-24T14:38:00.322881+00:00",
+"generatedAt": "2026-10-24T14:39:32.086137+00:00",
 "account": {},
 "globalClaudeMd": null,
 "skills": [
@@ -873,7 +885,7 @@ const ROADMAP = [
     ["Serveurs MCP & plugins", "Sans jamais exposer les secrets"],
     ["Config globale", "Compte, CLAUDE.md, marketplaces"],
   ]},
-  { v: "v2", title: "Actions", status: "Prévu", items: [
+  { v: "v2", title: "Actions", status: "En ligne", live: true, items: [
     ["Ouvrir un projet", "Dans l'éditeur ou l'explorateur en un clic"],
     ["Lancer Claude dans un projet", "Nouvelle session directement depuis la carte"],
     ["Reprendre une session", "claude --resume sur une session listée"],
@@ -896,6 +908,8 @@ const ROADMAP = [
 
 // Set by snapshot.py in the online copy, which works without the PC.
 const SNAPSHOT = window.JARVIS_DATA || null;
+// Only the local server puts a token in the page: no token, no action buttons.
+const TOKEN = !SNAPSHOT && window.JARVIS_TOKEN;
 let data = null, tab = "overview", query = "";
 // localhost links only make sense on the PC that serves them.
 const visibleLinks = p => (p.links || []).filter(l => !(SNAPSHOT && l.kind === "local"));
@@ -922,6 +936,38 @@ const ago = iso => {
 const match = (...fields) => !query || fields.join(" ").toLowerCase().includes(query);
 const appIcon = x => x.icon ? `<img class="app-icon" src="${esc(x.icon)}" alt="">` : "";
 const chip = (t, cls = "") => `<span class="chip ${cls}">${esc(t)}</span>`;
+// An action button; data-* attributes become the request body.
+const btn = (label, args, cls = "", title = "") => TOKEN ? `<button class="act ${cls}" title="${esc(title)}" ${
+  Object.entries(args).map(([k, v]) => `data-${k}="${esc(v)}"`).join(" ")}>${esc(label)}</button>` : "";
+
+const CONFIRM = {
+  toggle_plugin: d => `${d.enable === "1" ? "Activer" : "Désactiver"} le plugin « ${d.id} » ?
+
+Jarvis va écrire dans ~/.claude/settings.json (copie de sauvegarde settings.json.jarvis.bak).`,
+  toggle_mcp: d => `${d.enable === "1" ? "Activer" : "Désactiver"} le serveur MCP « ${d.name} » pour ce projet ?
+
+Jarvis va écrire dans ~/.claude.json (copie de sauvegarde .claude.json.jarvis.bak).`,
+  git_pull: d => "Lancer git pull (avance rapide uniquement) dans ce projet ?",
+};
+
+async function act(el) {
+  const d = { ...el.dataset };
+  if (CONFIRM[d.act] && !confirm(CONFIRM[d.act](d))) return;
+  const out = document.getElementById("out");
+  const show = text => { out.innerHTML = `<button class="act" data-close>×</button>${esc(text)}`; out.hidden = false; };
+  show(`> ${d.act}…`);
+  el.disabled = true;
+  try {
+    const r = await fetch("/api/action", { method: "POST", body: JSON.stringify({ ...d, enable: d.enable === "1" }),
+      headers: { "Content-Type": "application/json", "X-Jarvis-Token": TOKEN } });
+    const j = await r.json().catch(() => ({ error: `HTTP ${r.status}` }));
+    show(j.ok ? j.output : `ERREUR · ${j.error}`);
+    if (j.ok && d.act.startsWith("toggle")) load();
+  } catch (e) {
+    show(`ERREUR · ${e.message}`);
+  }
+  el.disabled = false;
+}
 
 function renderTabs() {
   document.getElementById("tabs").innerHTML = TABS.map(([id, label]) =>
@@ -953,12 +999,26 @@ function projectCard(p) {
   const links = visibleLinks(p).map(l =>
     `<a class="link ${l.kind}" href="${esc(l.url)}" target="_blank" rel="noopener" title="${esc(l.url)}">${esc(l.label)}</a>`).join("");
   const sessions = p.sessions.filter(s => s.firstPrompt).slice(0, 3).map(s =>
-    `<li><time>${ago(s.updatedAt)} · ${s.sizeKb} Ko</time>${esc(s.firstPrompt)}</li>`).join("");
+    `<li>${btn("Reprendre", { act: "claude_resume", path: p.path, id: s.id }, "", `claude --resume ${s.id}`)}<time>${ago(s.updatedAt)} · ${s.sizeKb} Ko</time>${esc(s.firstPrompt)}</li>`).join("");
+  const a = { path: p.path };
+  const actions = TOKEN && p.exists ? `<div class="links">
+    ${btn("Dossier", { act: "open_explorer", ...a }, "", "Ouvrir dans l'explorateur Windows")}
+    ${btn("Éditeur", { act: "open_editor", ...a }, "", "Ouvrir dans VS Code")}
+    ${btn("Claude ▶", { act: "claude_new", ...a }, "on", "Nouvelle session Claude Code dans un terminal")}
+    ${g ? btn("Git statut", { act: "git_status", ...a }) + btn("Git pull", { act: "git_pull", ...a }) : ""}
+  </div>` : "";
+  // Servers Claude Code loads in this project: user-wide ones plus the project's own.
+  const mcpToggles = TOKEN ? [...data.mcpServers.filter(m => m.scope === "user"), ...p.mcpServers].map(m => {
+    const on = !(p.disabledMcp || []).includes(m.name);
+    return btn(`MCP ${m.name} · ${on ? "on" : "off"}`, { act: "toggle_mcp", ...a, name: m.name, enable: on ? 0 : 1 }, on ? "on" : "off");
+  }).join("") : "";
   return `<div class="card">
     <h3>${appIcon(p)}${esc(p.name)}</h3>
     <div class="path">${esc(p.path)}</div>
     <div class="row">${chips}</div>
     ${links ? `<div class="links">${links}</div>` : ""}
+    ${actions}
+    ${mcpToggles ? `<div class="links">${mcpToggles}</div>` : ""}
     <p>${p.lastActivity !== undefined ? `Dernière activité : ${ago(p.lastActivity)}` : ""}${g && g.lastCommit ? ` · dernier commit : ${esc(g.lastCommit.split(" ").slice(1).join(" "))}` : ""}</p>
     ${sessions ? `<ul class="sessions">${sessions}</ul>` : ""}
   </div>`;
@@ -985,7 +1045,8 @@ function mcpCard(m) {
 function pluginCard(p) {
   const parts = [...p.skills.map(s => `skill:${s}`), ...p.commands.map(c => `/${c}`), ...p.agents.map(a => `agent:${a}`)];
   return `<div class="card">
-    <h3>${esc(p.id)} ${chip(`v${p.version}`)} ${chip(p.enabled ? "activé" : "désactivé", p.enabled ? "ok" : "warn")}</h3>
+    <h3>${esc(p.id)} ${chip(`v${p.version}`)} ${chip(p.enabled ? "activé" : "désactivé", p.enabled ? "ok" : "warn")}
+      ${btn(p.enabled ? "Désactiver" : "Activer", { act: "toggle_plugin", id: p.id, enable: p.enabled ? 0 : 1 })}</h3>
     <p>Installé ${ago(p.installedAt)} · portée ${esc(p.scope)}</p>
     <div class="row">${parts.map(x => chip(x)).join("")}</div>
   </div>`;
@@ -1039,12 +1100,12 @@ function render() {
         <div class="ring r1"></div><div class="ring r2"></div><div class="ring r3"></div>
         <div class="ring r4"></div><div class="ring r5"></div>
         <div class="label">J.A.R.V.I.S</div>
-        <div class="sub">v1 · ONLINE</div>
+        <div class="sub">v2 · ONLINE</div>
       </div>
       <div class="hud-col right">
         ${stat("mcp", allMcp().length, "serveurs MCP")}
         ${stat("plugins", data.plugins.length, "plugins")}
-        ${stat("roadmap", ROADMAP.length - 1, "évolutions prévues")}
+        ${stat("roadmap", ROADMAP.filter(ph => !ph.live).length, "évolutions prévues")}
       </div>
     </section>
     <div class="status-line"><span class="dot"></span>${SNAPSHOT
@@ -1074,7 +1135,7 @@ function render() {
     </div></div>`;
     html += `<h2>CLAUDE.md global</h2>` + (data.globalClaudeMd ? `<pre>${esc(data.globalClaudeMd)}</pre>` : `<p class="empty">// aucun</p>`);
   }
-  html += `<p class="note" style="margin-top:28px">// inventaire généré ${ago(data.generatedAt)} · lecture seule</p>`;
+  html += `<p class="note" style="margin-top:28px">// inventaire généré ${ago(data.generatedAt)} · ${TOKEN ? "actions locales actives" : "lecture seule"}</p>`;
   app.innerHTML = html;
 }
 
@@ -1092,6 +1153,9 @@ async function load() {
 }
 
 document.addEventListener("click", e => {
+  if (e.target.closest("[data-close]")) return (document.getElementById("out").hidden = true);
+  const b = e.target.closest("button[data-act]");
+  if (b) return act(b);
   const t = e.target.closest("[data-tab]");
   if (t) return setTab(t.dataset.tab);
   const g = e.target.closest("[data-goto]");

@@ -39,6 +39,7 @@ def public_view(data):
             p["git"].pop("lastCommit", None)
         p["path"] = ""
         p["sessions"] = []
+        p["disabledMcp"] = []
         p["links"] = [l for l in p["links"] if l["kind"] != "local"]
         p.pop("lastActivity", None)
         if p["git"]:
