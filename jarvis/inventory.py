@@ -314,6 +314,20 @@ def _project(path_str, cfg):
     }
 
 
+def project_configs(claude_json=None):
+    """{folder: its ~/.claude.json entry} for every project folder that still exists."""
+    if claude_json is None:
+        claude_json = _load_json(CLAUDE_JSON) or {}
+    known = dict(claude_json.get("projects") or {})
+    seen = {str(Path(p)).lower() for p in known}
+    for cwd in _session_cwds():
+        if str(Path(cwd)).lower() not in seen:
+            known[cwd] = {}
+    return {p: cfg for p, cfg in known.items()
+            if SCRATCH_MARKER not in p and Path(p) not in (HOME / ".local" / "bin", HOME / "Documents")
+            and Path(p).is_dir()}  # renamed or deleted folders stay in ~/.claude.json
+
+
 # --- Entry point --------------------------------------------------------------
 
 def collect():
@@ -356,17 +370,7 @@ def collect():
         s["usageCount"] = u.get("usageCount", 0)
         s["lastUsedAt"] = _iso(u.get("lastUsedAt"))
 
-    known = dict(claude_json.get("projects") or {})
-    seen = {str(Path(p)).lower() for p in known}
-    for cwd in _session_cwds():
-        if str(Path(cwd)).lower() not in seen:
-            known[cwd] = {}
-    projects = [
-        _project(p, cfg or {})
-        for p, cfg in known.items()
-        if SCRATCH_MARKER not in p and Path(p) not in (HOME / ".local" / "bin", HOME / "Documents")
-        and Path(p).is_dir()  # renamed or deleted folders stay in ~/.claude.json
-    ]
+    projects = [_project(p, cfg or {}) for p, cfg in project_configs(claude_json).items()]
     projects.sort(key=lambda p: p["lastActivity"] or "", reverse=True)
 
     scratch_sessions = sum(

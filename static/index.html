@@ -180,6 +180,34 @@
   .phase li::before { content: "›"; position: absolute; left: 0; color: var(--cyan); }
   .phase li small { display: block; color: var(--muted); font-size: 13px; }
 
+  /* --- v3: chat, usage, search, git (local page only) --- */
+  .toolbar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; }
+  select, textarea, .toolbar input { background: rgba(8, 26, 44, .8); color: var(--text); border: 1px solid var(--line);
+                                     padding: 7px 10px; font: 14px var(--mono); outline: none; }
+  select:focus, textarea:focus, .toolbar input:focus { border-color: var(--cyan); box-shadow: var(--glow); }
+  .toolbar input { flex: 1; min-width: 0; }
+  textarea { width: 100%; resize: vertical; }
+  .chat-log { display: grid; gap: 10px; max-height: 60vh; overflow: auto; margin-bottom: 12px; }
+  .msg { white-space: pre-wrap; word-break: break-word; padding: 10px 14px; border: 1px solid var(--line); background: var(--panel); }
+  .msg.user { border-color: rgba(255,181,71,.45); justify-self: end; max-width: 85%; }
+  .msg small { display: block; font: 11px var(--mono); color: var(--cyan); letter-spacing: .15em; margin-bottom: 4px; }
+  .msg.user small { color: var(--warn); }
+  .msg .err { color: var(--warn); }
+  .bars { display: flex; align-items: flex-end; gap: 6px; height: 220px; padding-top: 8px; border-bottom: 1px solid var(--line); }
+  .bars .col { flex: 1; min-width: 0; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; }
+  .bars .stack { display: flex; flex-direction: column-reverse; min-height: 1px; box-shadow: var(--glow); }
+  .bars small { font: 10px var(--mono); color: var(--muted); text-align: center; margin-top: 4px; white-space: nowrap; overflow: hidden; }
+  .bars .val { font: 10px var(--mono); color: var(--cyan); text-align: center; margin-bottom: 2px; overflow: hidden; }
+  .legend i, .hbar i { display: inline-block; height: 10px; }
+  .legend i { width: 10px; margin: 0 4px 0 10px; vertical-align: middle; }
+  table.usage { width: 100%; border-collapse: collapse; font: 13px var(--mono); }
+  table.usage td, table.usage th { padding: 5px 8px; border-bottom: 1px dashed var(--line); text-align: right; white-space: nowrap; }
+  table.usage th { color: var(--cyan); font-weight: normal; letter-spacing: .1em; }
+  table.usage td:first-child, table.usage th:first-child { text-align: left; white-space: normal; }
+  .hbar { width: 30%; } .hbar i { background: var(--cyan); box-shadow: var(--glow); }
+  .table-wrap { overflow-x: auto; background: var(--panel); border: 1px solid var(--line); padding: 8px; }
+  mark { background: rgba(63,216,255,.3); color: var(--text); }
+
   @media (max-width: 900px) {
     .hero { grid-template-columns: 1fr; justify-items: center; }
     .hud-col { flex-direction: row; flex-wrap: wrap; justify-content: center; }
@@ -217,10 +245,12 @@
 <main id="app"><p class="empty">// initialisation des systèmes…</p></main>
 
 <script>
-const TABS = [
+const BASE_TABS = [
   ["overview", "Accueil"], ["projects", "Projets"], ["skills", "Skills"],
-  ["mcp", "MCP"], ["plugins", "Plugins"], ["config", "Config"], ["roadmap", "Évolutions"],
+  ["mcp", "MCP"], ["plugins", "Plugins"], ["config", "Config"],
 ];
+// Need the local server: never shown on the online copies.
+const LOCAL_TABS = [["chat", "Chat"], ["usage", "Usage"], ["search", "Recherche"], ["git", "Git"]];
 const ROADMAP = [
   { v: "v1", title: "Inventaire", status: "En ligne", live: true, items: [
     ["Projets & sessions", "Activité, état git, premiers prompts"],
@@ -235,17 +265,16 @@ const ROADMAP = [
     ["Activer / désactiver", "Serveurs MCP et plugins, avec confirmation"],
     ["Git rapide", "Statut, pull, dernier commit par projet"],
   ]},
-  { v: "v3", title: "Cerveau", status: "Prévu", items: [
-    ["Chat intégré", "Via le Claude Agent SDK, avec tous tes skills et MCP"],
-    ["Routage intelligent", "Jarvis choisit le projet et le skill adaptés à la demande"],
-    ["Mémoire", "Se souvient de tes préférences et de l'état des projets"],
-    ["Tâches planifiées", "Brief du matin, veille, rappels"],
+  { v: "v3", title: "Cerveau", status: "En ligne", live: true, items: [
+    ["Chat intégré", "claude -p dans le dossier du projet, réponse en direct, conversation continue"],
+    ["Compteur de tokens", "14 derniers jours, par jour, par projet et par modèle"],
+    ["Recherche dans les sessions", "Prompts et réponses de toutes les sessions, avec « Reprendre »"],
+    ["Bilan git", "Tous les projets : branche, modifs, commits en avance ou en retard, « Tout pull »"],
   ]},
-  { v: "v4", title: "Voix", status: "Prévu", items: [
-    ["Mot d'éveil « Jarvis »", "Écoute locale, sans envoi en continu"],
-    ["Reconnaissance vocale", "Whisper en local"],
-    ["Synthèse vocale", "Réponses parlées"],
-    ["Mode HUD", "Plein écran ou overlay, raccourci clavier global"],
+  { v: "v4", title: "Voix & HUD", status: "Prévu", items: [
+    ["Bouton micro", "Dicter au chat et entendre la réponse, avec la voix du navigateur"],
+    ["Barre de commande Ctrl+K", "Ouvrir un projet, lancer une action ou chercher au clavier"],
+    ["État du PC dans le HUD", "Processeur, mémoire et disque autour du réacteur"],
   ]},
 ];
 
@@ -253,6 +282,7 @@ const ROADMAP = [
 const SNAPSHOT = window.JARVIS_DATA || null;
 // Only the local server puts a token in the page: no token, no action buttons.
 const TOKEN = !SNAPSHOT && window.JARVIS_TOKEN;
+const TABS = [...BASE_TABS, ...(TOKEN ? LOCAL_TABS : []), ["roadmap", "Évolutions"]];
 let data = null, tab = "overview", query = "";
 // localhost links only make sense on the PC that serves them.
 const visibleLinks = p => (p.links || []).filter(l => !(SNAPSHOT && l.kind === "local"));
@@ -267,6 +297,7 @@ function quickAccess() {
        <b>${appIcon(l)}${esc(l.project)}</b><small>${esc(l.label.replace(/^.*· /, ""))} ↗</small></a>`).join("")}</div>`;
 }
 try { tab = localStorage.getItem("jarvis.tab") || tab; } catch {}
+if (!TABS.some(([id]) => id === tab)) tab = "overview";
 
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const ago = iso => {
@@ -291,6 +322,7 @@ Jarvis va écrire dans ~/.claude/settings.json (copie de sauvegarde settings.jso
 
 Jarvis va écrire dans ~/.claude.json (copie de sauvegarde .claude.json.jarvis.bak).`,
   git_pull: d => "Lancer git pull (avance rapide uniquement) dans ce projet ?",
+  git_pull_all: d => "Lancer git pull (avance rapide uniquement) dans TOUS les projets git ?",
 };
 
 async function act(el) {
@@ -306,6 +338,7 @@ async function act(el) {
     const j = await r.json().catch(() => ({ error: `HTTP ${r.status}` }));
     show(j.ok ? j.output : `ERREUR · ${j.error}`);
     if (j.ok && d.act.startsWith("toggle")) load();
+    if (d.act.startsWith("git_pull") && tab === "git") loadExtra("git");
   } catch (e) {
     show(`ERREUR · ${e.message}`);
   }
@@ -418,11 +451,188 @@ function allSkills() {
   return [...data.skills, ...data.projects.flatMap(p => p.skills.map(s => ({ ...s, source: `projet:${p.name}` })))];
 }
 
+// --- v3: views loaded when their tab opens, only on the local page ---
+const extra = {};  // tab -> what the server sent, null while loading, or {error}
+const chat = { path: "", session: "", log: [], busy: false, ctrl: null };
+const api = (url, opts = {}) => fetch(url, { ...opts, headers: { "Content-Type": "application/json", "X-Jarvis-Token": TOKEN } });
+const fmt = n => n >= 1e9 ? `${(n / 1e9).toFixed(1)} G` : n >= 1e6 ? `${(n / 1e6).toFixed(1)} M` : n >= 1e3 ? `${Math.round(n / 1e3)} k` : String(n);
+const loading = `<p class="empty">// chargement…</p>`;
+const failed = e => `<p class="empty">// erreur : ${esc(e)}</p>`;
+
+async function loadExtra(t, url = { usage: "/api/usage", git: "/api/git" }[t]) {
+  extra[t] = null;
+  if (tab === t) render();
+  try {
+    const r = await api(url);
+    const j = await r.json();
+    extra[t] = r.ok ? j : { error: j.error || `HTTP ${r.status}` };
+  } catch (e) { extra[t] = { error: e.message }; }
+  if (tab === t) render();
+}
+
+function chatLog() {
+  return chat.log.map(m => `<div class="msg ${m.role}"><small>${m.role === "user" ? "TOI" : "CLAUDE"}</small>${esc(m.text)}${
+    m.error ? `<span class="err">\n⚠ ${esc(m.error)}</span>` : ""}${chat.busy && m === chat.log.at(-1) ? "▌" : ""}</div>`).join("")
+    || `<p class="empty">// pose une question à Claude sur ce projet</p>`;
+}
+
+function refreshChat() {
+  const log = document.getElementById("chat-log");
+  if (!log) return;
+  log.innerHTML = chatLog();
+  log.scrollTop = log.scrollHeight;
+}
+
+function chatView() {
+  if (!chat.path) chat.path = data.projects[0]?.path || "";
+  const options = data.projects.map(p => `<option value="${esc(p.path)}" ${p.path === chat.path ? "selected" : ""}>${esc(p.name)}</option>`).join("");
+  return `<h2>Chat <span class="count">[${chat.session ? `session ${esc(chat.session.slice(0, 8))}` : "nouvelle conversation"}]</span></h2>
+    <div class="toolbar"><select id="chat-project" aria-label="Projet">${options}</select>
+      <button class="act" data-chat="new">Nouvelle conversation</button>
+      ${chat.session && !chat.busy ? btn("Ouvrir dans un terminal", { act: "claude_resume", path: chat.path, id: chat.session }) : ""}</div>
+    <div class="chat-log" id="chat-log"></div>
+    <form id="chat-form">
+      <textarea id="chat-input" rows="3" placeholder="> ton message_ (Ctrl+Entrée pour envoyer)" aria-label="Message" ${chat.busy ? "disabled" : ""}></textarea>
+      <div class="toolbar" style="margin-top:8px">${chat.busy
+        ? `<button class="act off" type="button" data-chat="stop">Stop</button>`
+        : `<button class="act on" type="submit">Envoyer</button>`}</div>
+    </form>
+    <p class="note">Claude répond avec « claude -p » dans le dossier du projet. Ce qui demanderait ta confirmation (modifier un fichier, lancer une commande non autorisée) est refusé automatiquement : pour ça, ouvre la session dans un terminal.</p>`;
+}
+
+async function sendChat(message) {
+  const reply = { role: "claude", text: "" };
+  chat.log.push({ role: "user", text: message }, reply);
+  chat.busy = true;
+  chat.ctrl = new AbortController();
+  render();
+  try {
+    const r = await api("/api/chat", { method: "POST", signal: chat.ctrl.signal,
+      body: JSON.stringify({ path: chat.path, session: chat.session, message }) });
+    if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || `HTTP ${r.status}`);
+    const reader = r.body.pipeThrough(new TextDecoderStream()).getReader();
+    let buf = "";
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      const lines = (buf + value).split("\n");
+      buf = lines.pop();
+      for (const line of lines.filter(Boolean)) {
+        const ev = JSON.parse(line);
+        if (ev.text) reply.text += ev.text;
+        if (ev.tool) reply.text += `\n⚙ ${ev.tool}\n`;
+        if (ev.session) chat.session = ev.session;
+        if (ev.error && ev.error !== reply.text.trim()) reply.error = ev.error;
+      }
+      refreshChat();
+    }
+  } catch (e) {
+    if (e.name !== "AbortError") reply.error = e.message;
+  }
+  chat.busy = false;
+  if (tab === "chat") { render(); document.getElementById("chat-input")?.focus(); }
+}
+
+const USAGE_KINDS = [["output", "sorties", "var(--ok)"], ["input", "entrées", "var(--warn)"],
+                     ["cacheCreation", "cache écrit", "var(--cyan)"], ["cacheRead", "cache lu", "var(--cyan-dim)"]];
+const total = r => USAGE_KINDS.reduce((n, [k]) => n + r[k], 0);
+const sumRows = (rows, init) => rows.reduce((t, r) => (USAGE_KINDS.forEach(([k]) => t[k] += r[k]), t),
+                                            { ...init, input: 0, output: 0, cacheRead: 0, cacheCreation: 0 });
+
+function usageTable(title, rows, key) {
+  const names = [...new Set(rows.map(r => r[key]))];
+  const list = names.map(n => sumRows(rows.filter(r => r[key] === n), { name: n })).sort((a, b) => total(b) - total(a));
+  const max = Math.max(1, ...list.map(total));
+  return `<h2>${title} <span class="count">[${list.length}]</span></h2><div class="table-wrap"><table class="usage">
+    <tr><th></th><th class="hbar"></th>${USAGE_KINDS.map(([, l]) => `<th>${l}</th>`).join("")}<th>total</th></tr>
+    ${list.map(g => `<tr><td>${esc(g.name)}</td><td class="hbar"><i style="width:${100 * total(g) / max}%"></i></td>${
+      USAGE_KINDS.map(([k]) => `<td>${fmt(g[k])}</td>`).join("")}<td>${fmt(total(g))}</td></tr>`).join("")}
+  </table></div>`;
+}
+
+function usageView() {
+  const u = extra.usage;
+  if (!u) return `<h2>Usage</h2>${loading}`;
+  if (u.error) return `<h2>Usage</h2>${failed(u.error)}`;
+  const rows = u.rows.filter(r => match(r.project, r.model));
+  const perDay = u.days.map(d => sumRows(rows.filter(r => r.day === d), { day: d }));
+  const max = Math.max(1, ...perDay.map(total));
+  const bars = perDay.map(t => `<div class="col" title="${t.day} · ${USAGE_KINDS.map(([k, l]) => `${l} ${fmt(t[k])}`).join(" · ")}">
+      <div class="val">${total(t) ? fmt(total(t)) : ""}</div>
+      <div class="stack" style="height:${100 * total(t) / max}%">${USAGE_KINDS.map(([k, , c]) => `<i style="flex:${t[k]};background:${c}"></i>`).join("")}</div>
+      <small>${t.day.slice(8)}/${t.day.slice(5, 7)}</small></div>`).join("");
+  return `<h2>Tokens par jour <span class="count">[${fmt(perDay.reduce((n, t) => n + total(t), 0))} sur ${u.days.length} j]</span></h2>
+    <div class="card"><div class="bars">${bars}</div>
+      <div class="toolbar note legend" style="margin:10px 0 0">${USAGE_KINDS.map(([, l, c]) => `<span><i style="background:${c}"></i>${l}</span>`).join("")}
+        <span class="spacer"></span><button class="act" data-reload="usage">Actualiser</button></div></div>
+    ${usageTable("Par projet", rows, "project")}
+    ${usageTable("Par modèle", rows, "model")}
+    <p class="note">Lu dans message.usage des sessions (sous-agents compris). Le cache lu coûte environ 10 fois moins cher qu'une entrée normale.</p>`;
+}
+
+const reEscape = s => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+function searchView() {
+  const s = extra.search;
+  const hit = h => `<li>${btn("Reprendre", { act: "claude_resume", path: h.path, id: h.session }, "", `claude --resume ${h.session}`)}
+      <time>${esc(h.project)} · ${ago(h.at)} · ${h.role === "user" ? "toi" : "claude"} · ${esc(h.session.slice(0, 8))}</time>${
+      esc(h.snippet).replace(new RegExp(reEscape(esc(s.q)), "gi"), m => `<mark>${m}</mark>`)}</li>`;
+  const results = !s ? "" : s.loading ? loading : s.error ? failed(s.error)
+    : s.hits.length ? `<div class="card"><ul class="sessions">${s.hits.map(hit).join("")}</ul></div>` : `<p class="empty">// aucun résultat</p>`;
+  return `<h2>Recherche dans les sessions ${s?.hits ? `<span class="count">[${s.hits.length}${s.hits.length >= 50 ? "+" : ""}]</span>` : ""}</h2>
+    <form id="search-form" class="toolbar"><input id="search-q" type="text" placeholder="> texte à chercher dans tes prompts et les réponses_" value="${esc(s?.q || "")}" aria-label="Texte à chercher">
+      <button class="act on" type="submit">Chercher</button></form>${results}`;
+}
+
+async function runSearch(q) {
+  extra.search = { q, loading: true };
+  render();
+  try {
+    const r = await api(`/api/search?limit=50&q=${encodeURIComponent(q)}`);
+    const j = await r.json();
+    extra.search = r.ok ? { q, hits: j } : { q, error: j.error || `HTTP ${r.status}` };
+  } catch (e) { extra.search = { q, error: e.message }; }
+  if (tab === "search") render();
+}
+
+function gitCard(g) {
+  const a = { path: g.path };
+  const sync = g.upstream == null ? chip("pas de branche distante")
+    : chip(`↑ ${g.ahead} à pousser`, g.ahead ? "warn" : "ok") + chip(`↓ ${g.behind} en retard`, g.behind ? "warn" : "ok");
+  return `<div class="card">
+    <h3>${esc(g.name)} ${chip(`git · ${g.branch}`, "accent")}</h3>
+    <div class="path">${esc(g.path)}${g.upstream ? ` → ${esc(g.upstream)}` : ""}</div>
+    <div class="row">${sync}${chip(`${g.dirty.length} modif.`, g.dirty.length ? "warn" : "ok")}</div>
+    ${g.dirty.length ? `<p class="path">${g.dirty.slice(0, 8).map(esc).join("<br>")}${g.dirty.length > 8 ? `<br>… +${g.dirty.length - 8}` : ""}</p>` : ""}
+    <div class="row">${g.branches.map(b => chip(b, b === g.branch ? "accent" : "")).join("")}</div>
+    <div class="links">${btn("Git statut", { act: "git_status", ...a })}${btn("Git pull", { act: "git_pull", ...a })}</div>
+  </div>`;
+}
+
+function gitView() {
+  const g = extra.git;
+  const tools = `<div class="toolbar"><button class="act" data-reload="git">Actualiser</button>
+    <button class="act" data-reload="git-fetch" title="git fetch dans chaque projet, puis recompte">Fetch + actualiser</button>
+    ${btn("Tout pull", { act: "git_pull_all" }, "on", "git pull --ff-only dans chaque projet")}</div>`;
+  if (!g) return `<h2>Bilan git</h2>${tools}${loading}`;
+  if (g.error) return `<h2>Bilan git</h2>${tools}${failed(g.error)}`;
+  return section("Bilan git", g.filter(r => match(r.name, r.branch, ...r.branches)).map(gitCard)).replace("</h2>", `</h2>${tools}`)
+    + `<p class="note">Avance et retard comparés à la dernière copie locale de la branche distante : « Fetch + actualiser » la met à jour d'abord.</p>`;
+}
+
+const LOCAL_VIEWS = { chat: chatView, usage: usageView, search: searchView, git: gitView };
+
 function render() {
   renderTabs();
   const app = document.getElementById("app");
   if (tab === "roadmap") { app.innerHTML = roadmapView(); return; }
   if (!data) return;
+  if (LOCAL_VIEWS[tab]) {
+    if ((tab === "usage" || tab === "git") && !(tab in extra)) return loadExtra(tab);
+    app.innerHTML = LOCAL_VIEWS[tab]();
+    if (tab === "chat") refreshChat();
+    return;
+  }
   const projects = data.projects.filter(p => match(p.name, p.path, ...p.sessions.map(s => s.firstPrompt || "")));
   const skills = allSkills().filter(s => match(s.name, s.description, s.source));
   const mcp = allMcp().filter(m => match(m.name, m.command || "", m.url || "", m.scope));
@@ -443,7 +653,7 @@ function render() {
         <div class="ring r1"></div><div class="ring r2"></div><div class="ring r3"></div>
         <div class="ring r4"></div><div class="ring r5"></div>
         <div class="label">J.A.R.V.I.S</div>
-        <div class="sub">v2 · ONLINE</div>
+        <div class="sub">v3 · ONLINE</div>
       </div>
       <div class="hud-col right">
         ${stat("mcp", allMcp().length, "serveurs MCP")}
@@ -505,6 +715,33 @@ document.addEventListener("click", e => {
   if (g) return setTab(g.dataset.goto);
   const c = e.target.closest("[data-expand]");
   if (c) c.classList.toggle("open");
+});
+document.addEventListener("click", e => {
+  const c = e.target.closest("[data-chat]");
+  if (c?.dataset.chat === "new") { chat.ctrl?.abort(); Object.assign(chat, { session: "", log: [] }); render(); }
+  if (c?.dataset.chat === "stop") chat.ctrl?.abort();
+  const r = e.target.closest("[data-reload]");
+  if (r) loadExtra(r.dataset.reload.split("-")[0], r.dataset.reload === "git-fetch" ? "/api/git?fetch=1" : undefined);
+});
+document.addEventListener("change", e => {
+  if (e.target.id !== "chat-project" || e.target.value === chat.path) return;
+  chat.ctrl?.abort();  // a conversation belongs to one project folder
+  Object.assign(chat, { path: e.target.value, session: "", log: [] });
+  render();
+});
+document.addEventListener("submit", e => {
+  e.preventDefault();
+  if (e.target.id === "chat-form") {
+    const message = document.getElementById("chat-input").value.trim();
+    if (message && !chat.busy) sendChat(message);
+  }
+  if (e.target.id === "search-form") {
+    const q = document.getElementById("search-q").value.trim();
+    if (q.length >= 2) runSearch(q);
+  }
+});
+document.addEventListener("keydown", e => {
+  if (e.target.id === "chat-input" && e.key === "Enter" && (e.ctrlKey || e.metaKey)) e.target.form.requestSubmit();
 });
 document.getElementById("q").addEventListener("input", e => { query = e.target.value.trim().toLowerCase(); render(); });
 document.getElementById("refresh").addEventListener("click", load);
