@@ -186,7 +186,8 @@ def _session_cwds():
         for jsonl in d.glob("*.jsonl"):
             with open(jsonl, encoding="utf-8", errors="replace") as f:
                 m = next((m for line in f if (m := CWD_RE.search(line))), None)
-            if m:
+            # A session moved out of a scratch folder starts there: try the next log.
+            if m and SCRATCH_MARKER not in m.group(1):
                 out.add(json.loads(f'"{m.group(1)}"'))
                 break
     return out
