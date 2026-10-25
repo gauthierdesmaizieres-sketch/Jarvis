@@ -156,6 +156,18 @@
   .quick-item:hover, .quick-item:focus-visible { background: rgba(63,216,255,.2); box-shadow: var(--glow); outline: none; }
   .quick-item.local { border-color: rgba(255,181,71,.45); background: rgba(255,181,71,.06); }
   .quick-item.local small { color: var(--warn); }
+  .quick-cell { display: flex; flex-direction: column; }
+  .quick-cell .quick-item { flex: 1; }
+  .share-link { align-self: flex-end; background: none; border: none; cursor: pointer; padding: 6px 2px 0;
+                color: var(--muted); font: 11px var(--mono); letter-spacing: .15em; text-transform: uppercase; }
+  .share-link:hover { color: var(--cyan); }
+  #share { position: fixed; inset: 0; z-index: 7; display: grid; place-items: center; padding: 16px; background: rgba(3, 7, 13, .88); }
+  #share[hidden] { display: none; }
+  .share-box { width: min(340px, 100%); padding: 20px; text-align: center; background: var(--bg-2);
+               border: 1px solid var(--cyan); box-shadow: var(--glow); }
+  .share-box h3 { margin: 0 0 12px; font: 600 15px var(--display); letter-spacing: .12em; }
+  .share-box .qr svg { display: block; width: 100%; height: auto; background: #fff; }  /* dark on white: scans everywhere */
+  .share-box .path { margin: 10px 0 4px; }
   a:focus-visible, button:focus-visible, .stat:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
   ul.sessions { list-style: none; padding: 0; margin: 10px 0 0; border-top: 1px dashed var(--line); }
   ul.sessions li { padding: 7px 0; border-bottom: 1px dashed var(--line); font-size: 14px; }
@@ -243,6 +255,7 @@
   </div>
 </header>
 <pre id="out" hidden></pre>
+<div id="share" hidden></div>
 <main id="app"><p class="empty">// initialisation des systèmes…</p></main>
 
 <script>
@@ -295,8 +308,50 @@ function quickAccess() {
     .map(l => ({ ...l, project: p.name, icon: p.icon })));
   if (!items.length) return `<h2>Accès rapide</h2><p class="empty">// aucun lien (voir links.json)</p>`;
   return `<h2>Accès rapide <span class="count">[${items.length}]</span></h2><div class="quick">${items.map(l =>
-    `<a class="quick-item ${l.kind}" href="${esc(l.url)}" target="_blank" rel="noopener">
-       <b>${appIcon(l)}${esc(l.project)}</b><small>${esc(l.label.replace(/^.*· /, ""))} ↗</small></a>`).join("")}</div>`;
+    `<div class="quick-cell"><a class="quick-item ${l.kind}" href="${esc(l.url)}" target="_blank" rel="noopener">
+       <b>${appIcon(l)}${esc(l.project)}</b><small>${esc(l.label.replace(/^.*· /, ""))} ↗</small></a>
+       ${l.kind === "local" ? "" : `<button class="share-link" data-share="${esc(l.url)}" data-name="${esc(l.project)}">Partager</button>`}</div>`).join("")}</div>`;
+}
+
+// --- Share an app: big QR code, the link, and the phone's own share sheet ---
+const QR_LIB = "https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js";
+let qrLib = null;  // loaded on the first "Partager" only
+
+async function openShare(url, name) {
+  const box = document.getElementById("share");
+  box.innerHTML = `<div class="share-box" role="dialog" aria-modal="true" aria-label="Partager ${esc(name)}">
+    <h3>${esc(name)}</h3><div class="qr">${loading}</div><div class="path">${esc(url)}</div>
+    <div class="links" style="justify-content:center">
+      ${navigator.share ? `<button class="act on" data-share-do="send">Envoyer</button>` : ""}
+      <button class="act" data-share-do="copy">Copier</button><button class="act" data-share-do="close">Fermer</button></div></div>`;
+  box.dataset.url = url;
+  box.dataset.name = name;
+  box.hidden = false;
+  box.querySelector("button").focus();
+  try {
+    qrLib ??= new Promise((ok, fail) => document.head.append(Object.assign(document.createElement("script"), { src: QR_LIB, onload: ok, onerror: fail })));
+    await qrLib;
+    const qr = qrcode(0, "M");
+    qr.addData(url);
+    qr.make();
+    box.querySelector(".qr").innerHTML = qr.createSvgTag({ cellSize: 6, margin: 3, scalable: true });
+  } catch {
+    qrLib = null;
+    box.querySelector(".qr").innerHTML = `<p class="empty">// QR code indisponible hors connexion</p>`;
+  }
+}
+
+async function shareAction(what) {
+  const box = document.getElementById("share");
+  const { url, name } = box.dataset;
+  if (what === "close") { box.hidden = true; return; }
+  try {
+    if (what === "send") await navigator.share({ title: name, url });
+    if (what === "copy") {
+      await navigator.clipboard.writeText(url);
+      box.querySelector("[data-share-do=copy]").textContent = "Copié";
+    }
+  } catch {}  // share sheet closed, or clipboard refused
 }
 try { tab = localStorage.getItem("jarvis.tab") || tab; } catch {}
 if (!TABS.some(([id]) => id === tab)) tab = "overview";
@@ -759,6 +814,11 @@ document.addEventListener("click", e => {
     if (!speak) speechSynthesis.cancel();
     render();
   }
+  const s = e.target.closest("[data-share]");
+  if (s) openShare(s.dataset.share, s.dataset.name);
+  const sd = e.target.closest("[data-share-do]");
+  if (sd) shareAction(sd.dataset.shareDo);
+  if (e.target.id === "share") shareAction("close");  // click outside the panel
   const r = e.target.closest("[data-reload]");
   if (r) loadExtra(r.dataset.reload.split("-")[0], r.dataset.reload === "git-fetch" ? "/api/git?fetch=1" : undefined);
 });
@@ -781,6 +841,7 @@ document.addEventListener("submit", e => {
 });
 document.addEventListener("input", e => { if (e.target.id === "chat-input") chat.draft = e.target.value; });
 document.addEventListener("keydown", e => {
+  if (e.key === "Escape" && !document.getElementById("share").hidden) shareAction("close");
   if (e.target.id === "chat-input" && e.key === "Enter" && (e.ctrlKey || e.metaKey)) e.target.form.requestSubmit();
 });
 document.getElementById("q").addEventListener("input", e => { query = e.target.value.trim().toLowerCase(); render(); });
