@@ -8,7 +8,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from snapshot import PUBLIC_OUT, build
+from snapshot import PUBLIC_OUT, STATS_OUT, build
 
 ROOT = Path(__file__).parent
 
@@ -20,10 +20,10 @@ def git(*args):
 def main():
     if not build(public=True):
         return
-    rel = PUBLIC_OUT.relative_to(ROOT).as_posix()
-    git("add", rel)
-    # Commit only the page, never whatever else is in progress in the repo.
-    r = git("commit", "-q", "-m", "Jarvis en ligne : mise à jour automatique", "--", rel)
+    rel = [f.relative_to(ROOT).as_posix() for f in (PUBLIC_OUT, STATS_OUT)]
+    git("add", *rel)
+    # Commit only the page and its stats, never whatever else is in progress in the repo.
+    r = git("commit", "-q", "-m", "Jarvis en ligne : mise à jour automatique", "--", *rel)
     if r.returncode != 0:
         sys.exit(f"commit échoué : {r.stderr.strip()}")
     r = git("push", "-q", "origin", "HEAD")

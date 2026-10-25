@@ -272,8 +272,9 @@ const ROADMAP = [
     ["Recherche dans les sessions", "Prompts et réponses de toutes les sessions, avec « Reprendre »"],
     ["Bilan git", "Tous les projets : branche, modifs, commits en avance ou en retard, « Tout pull »"],
   ]},
-  { v: "v4", title: "Voix & HUD", status: "Prévu", items: [
-    ["Bouton micro", "Dicter au chat et entendre la réponse, avec la voix du navigateur"],
+  { v: "v4", title: "Voix & HUD", status: "En cours", items: [
+    ["Bouton micro · fait", "Dicter au chat et entendre la réponse, avec la voix du navigateur"],
+    ["Jarvis sur le téléphone · fait", "En direct via Tailscale, app installable, « Partager vers Jarvis »"],
     ["Barre de commande Ctrl+K", "Ouvrir un projet, lancer une action ou chercher au clavier"],
     ["État du PC dans le HUD", "Processeur, mémoire et disque autour du réacteur"],
   ]},
@@ -454,7 +455,11 @@ function allSkills() {
 
 // --- v3: views loaded when their tab opens, only on the local page ---
 const extra = {};  // tab -> what the server sent, null while loading, or {error}
-const chat = { path: "", session: "", log: [], busy: false, ctrl: null };
+const chat = { path: "", session: "", log: [], busy: false, ctrl: null, draft: "", mic: null, micError: "" };
+// Browser speech: dictation (Chrome, Edge, Safari; needs https or localhost) and spoken replies.
+const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+let speak = false;
+try { speak = localStorage.getItem("jarvis.speak") === "1"; } catch {}
 const api = (url, opts = {}) => fetch(url, { ...opts, headers: { "Content-Type": "application/json", "X-Jarvis-Token": TOKEN } });
 const fmt = n => n >= 1e9 ? `${(n / 1e9).toFixed(1)} G` : n >= 1e6 ? `${(n / 1e6).toFixed(1)} M` : n >= 1e3 ? `${Math.round(n / 1e3)} k` : String(n);
 const loading = `<p class="empty">// chargement…</p>`;
@@ -493,10 +498,13 @@ function chatView() {
       ${chat.session && !chat.busy ? btn("Ouvrir dans un terminal", { act: "claude_resume", path: chat.path, id: chat.session }) : ""}</div>
     <div class="chat-log" id="chat-log"></div>
     <form id="chat-form">
-      <textarea id="chat-input" rows="3" placeholder="> ton message_ (Ctrl+Entrée pour envoyer)" aria-label="Message" ${chat.busy ? "disabled" : ""}></textarea>
+      <textarea id="chat-input" rows="3" placeholder="> ton message_ (Ctrl+Entrée pour envoyer)" aria-label="Message" ${chat.busy ? "disabled" : ""}>${esc(chat.draft)}</textarea>
       <div class="toolbar" style="margin-top:8px">${chat.busy
         ? `<button class="act off" type="button" data-chat="stop">Stop</button>`
-        : `<button class="act on" type="submit">Envoyer</button>`}</div>
+        : `<button class="act on" type="submit">Envoyer</button>`}
+        ${Recognition && !chat.busy ? `<button class="act ${chat.mic ? "off" : ""}" type="button" data-chat="mic">${chat.mic ? "■ J'écoute…" : "Micro"}</button>` : ""}
+        ${window.speechSynthesis ? `<button class="act ${speak ? "on" : ""}" type="button" data-chat="voice" title="Lire les réponses à voix haute">Voix · ${speak ? "on" : "off"}</button>` : ""}
+        ${chat.micError ? `<span class="note">micro : ${esc(chat.micError)}</span>` : ""}</div>
     </form>
     <p class="note">Claude répond avec « claude -p » dans le dossier du projet. Ce qui demanderait ta confirmation (modifier un fichier, lancer une commande non autorisée) est refusé automatiquement : pour ça, ouvre la session dans un terminal.</p>`;
 }
@@ -532,6 +540,29 @@ async function sendChat(message) {
   }
   chat.busy = false;
   if (tab === "chat") { render(); document.getElementById("chat-input")?.focus(); }
+  if (speak && reply.text) {
+    const u = new SpeechSynthesisUtterance(reply.text.replace(/^⚙ .*$/gm, ""));
+    u.lang = "fr-FR";
+    speechSynthesis.speak(u);
+  }
+}
+
+function toggleMic() {
+  if (chat.mic) return chat.mic.stop();
+  const rec = chat.mic = new Recognition();
+  const before = chat.draft ? chat.draft + " " : "";
+  rec.lang = "fr-FR";
+  rec.interimResults = true;
+  rec.onresult = e => {
+    chat.draft = before + [...e.results].map(r => r[0].transcript).join("");
+    const input = document.getElementById("chat-input");
+    if (input) input.value = chat.draft;
+  };
+  rec.onerror = e => { chat.micError = e.error === "not-allowed" ? "accès refusé par le navigateur" : e.error; };
+  rec.onend = () => { chat.mic = null; if (tab === "chat") render(); };
+  chat.micError = "";
+  rec.start();
+  render();
 }
 
 const USAGE_KINDS = [["output", "sorties", "var(--ok)"], ["input", "entrées", "var(--warn)"],
@@ -721,6 +752,13 @@ document.addEventListener("click", e => {
   const c = e.target.closest("[data-chat]");
   if (c?.dataset.chat === "new") { chat.ctrl?.abort(); Object.assign(chat, { session: "", log: [] }); render(); }
   if (c?.dataset.chat === "stop") chat.ctrl?.abort();
+  if (c?.dataset.chat === "mic") toggleMic();
+  if (c?.dataset.chat === "voice") {
+    speak = !speak;
+    try { localStorage.setItem("jarvis.speak", speak ? "1" : "0"); } catch {}
+    if (!speak) speechSynthesis.cancel();
+    render();
+  }
   const r = e.target.closest("[data-reload]");
   if (r) loadExtra(r.dataset.reload.split("-")[0], r.dataset.reload === "git-fetch" ? "/api/git?fetch=1" : undefined);
 });
@@ -734,19 +772,28 @@ document.addEventListener("submit", e => {
   e.preventDefault();
   if (e.target.id === "chat-form") {
     const message = document.getElementById("chat-input").value.trim();
-    if (message && !chat.busy) sendChat(message);
+    if (message && !chat.busy) { chat.draft = ""; chat.mic?.stop(); sendChat(message); }
   }
   if (e.target.id === "search-form") {
     const q = document.getElementById("search-q").value.trim();
     if (q.length >= 2) runSearch(q);
   }
 });
+document.addEventListener("input", e => { if (e.target.id === "chat-input") chat.draft = e.target.value; });
 document.addEventListener("keydown", e => {
   if (e.target.id === "chat-input" && e.key === "Enter" && (e.ctrlKey || e.metaKey)) e.target.form.requestSubmit();
 });
 document.getElementById("q").addEventListener("input", e => { query = e.target.value.trim().toLowerCase(); render(); });
 document.getElementById("refresh").addEventListener("click", load);
 document.getElementById("refresh").hidden = !!SNAPSHOT;
+// "Share to Jarvis" from the phone (installed app): the shared text lands in the chat box.
+const shared = new URLSearchParams(location.search);
+const sharedText = ["title", "text", "url"].map(k => shared.get(k)).filter(Boolean).join("\n");
+if (TOKEN && sharedText) {
+  tab = "chat";
+  chat.draft = sharedText;
+  history.replaceState(null, "", location.pathname);
+}
 renderTabs();
 load();
 </script>

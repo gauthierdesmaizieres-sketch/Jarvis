@@ -50,6 +50,23 @@ Quatre onglets en plus, chargés seulement quand on les ouvre :
 
 Ces routes (`POST /api/chat`, `GET /api/usage`, `/api/search`, `/api/git`) ont la même protection que les actions (Host, Origin, jeton). Ces onglets n'existent ni dans l'Artifact ni sur la page publique.
 
+Dans le chat, **Micro** dicte ton message et **Voix · on** lit les réponses à voix haute (reconnaissance et synthèse vocales du navigateur ; dans Chrome, la dictée passe par les serveurs de Google).
+
+### Sur le téléphone
+
+- **Jarvis en direct (PC allumé)** : installe [Tailscale](https://tailscale.com/download) sur le PC et sur le téléphone, connecte-les au même compte, puis lance une fois sur le PC :
+
+  ```bash
+  tailscale serve --bg 7777
+  ```
+
+  Au démarrage, `python server.py` affiche l'adresse à ouvrir sur le téléphone (`https://<pc>.<…>.ts.net`). Elle n'est accessible qu'à tes appareils (n'utilise pas `tailscale funnel`, qui la rendrait publique). Jarvis accepte cette adresse comme `127.0.0.1` ; le jeton reste obligatoire.
+- **Installer l'app** : dans le navigateur du téléphone, « Ajouter à l'écran d'accueil ». Jarvis s'ouvre alors en plein écran.
+- **Partager vers Jarvis** (Android, app installée) : dans le menu Partager d'une autre app, choisis Jarvis ; le texte ou le lien arrive dans le chat.
+- **Widget** : `docs/stats.json` (public, seulement les compteurs) est publié avec la page, à l'adresse `https://gauthierdesmaizieres-sketch.github.io/Jarvis/stats.json`. Un widget (Raccourcis sur iPhone, KWGT sur Android) peut l'afficher.
+- **PC éteint** : seules la page publique et l'Artifact marchent (lecture seule, état du dernier envoi). Le chat, git et la recherche ont besoin du PC. Pour coder sans le PC, utilise les sessions cloud de claude.ai/code.
+- **Claude Code depuis l'app Claude du téléphone** : Remote Control est activé pour les nouvelles sessions.
+
 `python tests/test_v3.py` vérifie le parseur de tokens, la recherche et la lecture du flux du chat.
 
 ### Version en ligne (téléphone, PC éteint)

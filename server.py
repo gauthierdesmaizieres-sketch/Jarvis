@@ -2,6 +2,10 @@
 
 Usage: python server.py [port]   (default 7777, bound to 127.0.0.1 only)
 
+From the phone: with Tailscale on the PC and the phone, `tailscale serve --bg 7777`
+publishes it at https://<pc>.<tailnet>.ts.net, reachable only by your own devices.
+That address is accepted below like 127.0.0.1.
+
 POST /api/action, POST /api/chat and the private GET routes (usage, search, git)
 only run for the dashboard page itself: the Host and Origin headers must be this
 server, and the request must carry the token this process put in the page.
@@ -12,6 +16,7 @@ import hmac
 import json
 import os
 import secrets
+import shutil
 import subprocess
 import sys
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -20,12 +25,35 @@ from urllib.parse import parse_qs, urlsplit
 
 from jarvis import actions, history
 from jarvis.inventory import collect
+from snapshot import APP_HEAD
 
 STATIC = Path(__file__).parent / "static"
+DOCS = Path(__file__).parent / "docs"  # app icons and manifest, shared with the public page
+ICONS = {"/icon-192.png", "/icon-512.png", "/apple-touch-icon.png"}
 TOKEN = secrets.token_urlsafe(32)
 
 
+def tailnet_name():
+    """This PC's private Tailscale name (pc.tailnet.ts.net), or None without Tailscale."""
+    exe = shutil.which("tailscale") or r"C:\Program Files\Tailscale\tailscale.exe"
+    try:
+        r = subprocess.run([exe, "status", "--json"], capture_output=True, encoding="utf-8",
+                           timeout=5, creationflags=actions.NO_WINDOW)
+        return json.loads(r.stdout)["Self"]["DNSName"].rstrip(".") or None
+    except (OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError):
+        return None
+
+
+def manifest():
+    """The public manifest, plus "Share to Jarvis": shared text opens in the chat."""
+    m = json.loads((DOCS / "manifest.webmanifest").read_text(encoding="utf-8"))
+    m["share_target"] = {"action": "./", "method": "GET", "params": {"title": "title", "text": "text", "url": "url"}}
+    return json.dumps(m, ensure_ascii=False).encode("utf-8")
+
+
 class Handler(BaseHTTPRequestHandler):
+    tailnet = None  # set by main()
+
     def _send(self, status, body, content_type):
         self.send_response(status)
         self.send_header("Content-Type", content_type)
@@ -56,9 +84,13 @@ class Handler(BaseHTTPRequestHandler):
             body = json.dumps(collect(), ensure_ascii=False).encode("utf-8")
             self._send(200, body, "application/json; charset=utf-8")
         elif path in ("/", "/index.html"):
-            html = (STATIC / "index.html").read_text(encoding="utf-8").replace(
+            html = (STATIC / "index.html").read_text(encoding="utf-8").replace("<title>Jarvis</title>", APP_HEAD).replace(
                 "<script>\n", f'<script>window.JARVIS_TOKEN = "{TOKEN}";</script>\n<script>\n', 1)
             self._send(200, html.encode("utf-8"), "text/html; charset=utf-8")
+        elif path == "/manifest.webmanifest":
+            self._send(200, manifest(), "application/manifest+json")
+        elif path in ICONS:
+            self._send(200, (DOCS / path[1:]).read_bytes(), "image/png")
         else:
             self._send(404, b"not found", "text/plain")
 
@@ -66,6 +98,9 @@ class Handler(BaseHTTPRequestHandler):
         port = self.server.server_address[1]
         hosts = {f"127.0.0.1:{port}", f"localhost:{port}"}
         origins = {f"http://{h}" for h in hosts}
+        if self.tailnet:  # the phone, through `tailscale serve` (https, your devices only)
+            hosts.add(self.tailnet)
+            origins.add(f"https://{self.tailnet}")
         # Browsers send no Origin on a same-origin GET; a cross-site GET can't add the token header.
         origin = self.headers.get("Origin", next(iter(origins)) if self.command == "GET" else None)
         # Host blocks DNS rebinding, Origin blocks other sites, the token blocks everything else.
@@ -122,8 +157,16 @@ class Handler(BaseHTTPRequestHandler):
 
 def main():
     port = int(sys.argv[1]) if len(sys.argv) > 1 else 7777
-    server = ThreadingHTTPServer(("127.0.0.1", port), Handler)
+    # On Windows, address reuse lets a second Jarvis silently share the port with the first.
+    ThreadingHTTPServer.allow_reuse_address = False
+    try:
+        server = ThreadingHTTPServer(("127.0.0.1", port), Handler)
+    except OSError:
+        sys.exit(f"Le port {port} est déjà pris : Jarvis tourne peut-être déjà (http://127.0.0.1:{port}).")
+    Handler.tailnet = tailnet_name()
     print(f"Jarvis running on http://127.0.0.1:{port}", flush=True)
+    if Handler.tailnet:
+        print(f"Sur le téléphone (après « tailscale serve --bg {port} ») : https://{Handler.tailnet}", flush=True)
     try:
         server.serve_forever()
     except KeyboardInterrupt:
