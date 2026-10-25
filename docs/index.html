@@ -76,7 +76,8 @@
          padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); position: relative; z-index: 1; }
 
   /* --- Arc reactor hero --- */
-  .hero { display: grid; grid-template-columns: 1fr auto 1fr; gap: 28px; align-items: center; margin: 8px 0 36px; }
+  .hero { display: grid; grid-template-columns: 1fr auto 1fr; gap: 28px; align-items: center; margin: 8px 0 36px;
+          min-height: calc(100vh - 220px); align-content: center; }
   .hud-col { display: flex; flex-direction: column; gap: 14px; }
   .hud-col.left { align-items: flex-end; }
   .reactor { width: 300px; height: 300px; position: relative; display: grid; place-items: center; }
@@ -218,7 +219,7 @@
   mark { background: rgba(63,216,255,.3); color: var(--text); }
 
   @media (max-width: 900px) {
-    .hero { grid-template-columns: 1fr; justify-items: center; }
+    .hero { grid-template-columns: 1fr; justify-items: center; min-height: 0; }
     .hud-col { flex-direction: row; flex-wrap: wrap; justify-content: center; }
     .hud-col.left { align-items: stretch; order: 2; }
     .hud-col.right { order: 3; }
@@ -254,7 +255,7 @@
 <main id="app"><p class="empty">// initialisation des systèmes…</p></main>
 
 <script>window.JARVIS_DATA = {
-"generatedAt": "2026-10-25T07:41:20.872436+00:00",
+"generatedAt": "2026-10-25T07:48:09.111967+00:00",
 "account": {},
 "globalClaudeMd": null,
 "skills": [
@@ -919,7 +920,7 @@
 };</script>
 <script>
 const BASE_TABS = [
-  ["overview", "Accueil"], ["projects", "Projets"], ["skills", "Skills"],
+  ["overview", "Accueil"], ["quick", "Accès rapide"], ["projects", "Projets"], ["skills", "Skills"],
   ["mcp", "MCP"], ["plugins", "Plugins"], ["config", "Config"],
 ];
 // Need the local server: never shown on the online copies.
@@ -964,7 +965,7 @@ function quickAccess() {
   const items = data.projects.flatMap(p => visibleLinks(p)
     .filter(l => l.kind === "web" || l.kind === "custom" || (l.kind === "local" && !SNAPSHOT))
     .map(l => ({ ...l, project: p.name, icon: p.icon })));
-  if (!items.length) return "";
+  if (!items.length) return `<h2>Accès rapide</h2><p class="empty">// aucun lien (voir links.json)</p>`;
   return `<h2>Accès rapide <span class="count">[${items.length}]</span></h2><div class="quick">${items.map(l =>
     `<a class="quick-item ${l.kind}" href="${esc(l.url)}" target="_blank" rel="noopener">
        <b>${appIcon(l)}${esc(l.project)}</b><small>${esc(l.label.replace(/^.*· /, ""))} ↗</small></a>`).join("")}</div>`;
@@ -1337,10 +1338,10 @@ function render() {
     <div class="status-line"><span class="dot"></span>${SNAPSHOT
       ? `INSTANTANÉ EN LIGNE · MIS À JOUR ${esc(ago(data.generatedAt).toUpperCase())}`
       : "TOUS LES SYSTÈMES OPÉRATIONNELS"} · ${esc(data.account.email || "")}</div>`;
+    app.innerHTML = html;  // the home page is just the HUD
+    return;
+  } else if (tab === "quick") {
     html += quickAccess();
-    html += section("Projets récents", projects.slice(0, 4).map(projectCard));
-    const recentSkills = [...skills].filter(s => s.usageCount).sort((a, b) => (b.lastUsedAt || "").localeCompare(a.lastUsedAt || ""));
-    html += section("Skills utilisés récemment", recentSkills.map(itemCard), "// aucun skill utilisé pour l'instant");
   } else if (tab === "projects") {
     html += section("Projets", projects.map(projectCard));
     html += `<p class="note">${data.scratchSessionCount} sessions « sans dossier » ne sont pas listées ici.</p>`;
