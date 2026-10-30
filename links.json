@@ -12,5 +12,12 @@
       "url": "http://127.0.0.1:54324",
       "kind": "local"
     }
+  ],
+  "Kobalt": [
+    {
+      "label": "APK Android",
+      "url": "https://github.com/gauthierdesmaizieres-sketch/labvoix/releases/latest",
+      "kind": "custom"
+    }
   ]
 }
