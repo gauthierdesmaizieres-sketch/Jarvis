@@ -13,7 +13,7 @@ import subprocess
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
-from .inventory import CLAUDE_DIR, CLAUDE_JSON, _encode_project, _load_json, project_configs
+from .inventory import CLAUDE_DIR, CLAUDE_JSON, NAMES_FILE, _encode_project, _load_json, collect, project_configs
 
 SETTINGS = CLAUDE_DIR / "settings.json"
 SESSION_RE = re.compile(r"^[0-9a-fA-F-]{36}$")
@@ -188,6 +188,27 @@ def toggle_mcp(req):
     return f"MCP {name} {'activé' if enable else 'désactivé'} pour {path.name}. Effet à la prochaine session."
 
 
+def rename_link(req):
+    """Name of a quick-access tile, kept in names.json. An empty name restores the project's."""
+    project, url, name = req.get("project"), req.get("url"), (req.get("label") or "").strip()
+    if len(name) > 40 or not name.isprintable():
+        raise ActionError("nom trop long (40 caractères au plus)")
+    if not any(l["url"] == url for p in collect()["projects"] if p["name"] == project for l in p["links"]):
+        raise ActionError("lien inconnu")
+    names = _load_json(NAMES_FILE)
+    if names is None:
+        raise ActionError("names.json illisible, rien n'a été écrit")
+    links = names.setdefault(project, {})
+    if name:
+        links[url] = name
+    else:
+        links.pop(url, None)
+    if not links:
+        del names[project]
+    _write_json(NAMES_FILE, names)
+    return f"Renommé en « {name} »." if name else f"Nom d'origine rétabli : {project}."
+
+
 def chat_events(line, state):
     """Events for the page from one line of `claude -p --output-format stream-json`.
 
@@ -222,7 +243,7 @@ def chat_events(line, state):
 
 
 ACTIONS = {f.__name__: f for f in (open_explorer, open_editor, claude_new, claude_resume,
-                                    git_status, git_pull, git_pull_all, toggle_plugin, toggle_mcp)}
+                                    git_status, git_pull, git_pull_all, toggle_plugin, toggle_mcp, rename_link)}
 
 
 def run(req):

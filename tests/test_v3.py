@@ -2,10 +2,12 @@
 
 import json
 import sys
+import tempfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from jarvis import actions
 from jarvis.actions import chat_events
 from jarvis.history import NO_FOLDER, parse_usage, search_lines
 
@@ -72,8 +74,29 @@ def test_chat_events():
     assert chat_events("Error: bad flag\n", state) == [{"error": "Error: bad flag"}]
 
 
+def test_rename_link():
+    with tempfile.TemporaryDirectory() as tmp:
+        actions.NAMES_FILE = Path(tmp) / "names.json"
+        actions.NAMES_FILE.write_text("{}", encoding="utf-8")
+        actions.collect = lambda: {"projects": [{"name": "App", "links": [{"url": "https://a"}]}]}
+        rename = lambda **req: actions.rename_link({"project": "App", "url": "https://a", **req})
+        names = lambda: json.loads(actions.NAMES_FILE.read_text(encoding="utf-8"))
+        rename(label=" Mon app ")
+        assert names() == {"App": {"https://a": "Mon app"}}
+        rename(label="")  # back to the project's name
+        assert names() == {}
+        for bad in (dict(label="x", url="https://autre"), dict(label="x" * 41), dict(label="a\nb")):
+            try:
+                rename(**bad)
+                raise AssertionError(bad)
+            except actions.ActionError:
+                pass
+        assert names() == {}
+
+
 if __name__ == "__main__":
     test_usage()
     test_search()
     test_chat_events()
+    test_rename_link()
     print("ok")

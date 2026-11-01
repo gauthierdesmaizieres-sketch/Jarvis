@@ -35,7 +35,7 @@ SKELETON = [
 APP_HEAD = """<title>Jarvis</title>
 <meta name="robots" content="noindex">
 <link rel="manifest" href="manifest.webmanifest">
-<meta name="theme-color" content="#03070d">
+<meta name="theme-color" content="#060b18">
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <meta name="apple-mobile-web-app-capable" content="yes">

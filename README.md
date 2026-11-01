@@ -34,7 +34,9 @@ Sur chaque carte projet du dashboard local :
 
 Dans l'onglet Plugins, **Activer / Désactiver** change `enabledPlugins` dans `~/.claude/settings.json`.
 
-Les seules écritures de Jarvis sont ces deux interrupteurs. Chacun demande une confirmation dans la page, garde une copie `*.jarvis.bak` du fichier d'avant, et prend effet à la prochaine session Claude Code. Le MCP coupé est noté dans `~/.claude.json`, dans le projet : `disabledMcpjsonServers` pour un serveur du `.mcp.json`, `disabledMcpServers` pour les autres.
+Dans l'onglet Accès rapide, **Renommer** change le nom d'une tuile (vide : nom d'origine). Le nom est gardé dans `names.json`, avec une copie `names.json.jarvis.bak`, et apparaît aussi sur la page publique. Deux tuiles de même nom et même lien n'en font qu'une.
+
+Les seules autres écritures de Jarvis sont ces deux interrupteurs. Chacun demande une confirmation dans la page, garde une copie `*.jarvis.bak` du fichier d'avant, et prend effet à la prochaine session Claude Code. Le MCP coupé est noté dans `~/.claude.json`, dans le projet : `disabledMcpjsonServers` pour un serveur du `.mcp.json`, `disabledMcpServers` pour les autres.
 
 Sécurité des actions : `POST /api/action` n'accepte que les requêtes dont `Host` et `Origin` sont `127.0.0.1`/`localhost` sur le port de Jarvis et qui portent le jeton aléatoire que le serveur met dans la page à chaque démarrage. Une action ne vise qu'un projet déjà connu de Claude Code, jamais un chemin libre. Les copies hors ligne (Artifact, GitHub Pages) n'ont pas de jeton : aucun bouton d'action n'y apparaît.
 

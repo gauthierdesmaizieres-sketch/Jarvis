@@ -213,6 +213,7 @@ def _git_info(path):
 
 GITHUB_RE = re.compile(r"github\.com[:/]([^/]+)/([^/\s]+?)(?:\.git)?$")
 LINKS_FILE = Path(__file__).resolve().parent.parent / "links.json"
+NAMES_FILE = LINKS_FILE.with_name("names.json")  # tile names chosen in Accès rapide: {project: {url: name}}
 
 
 def _github_links(repo_dir, label_prefix=""):
@@ -261,11 +262,12 @@ def _project_links(path, name):
             links += _github_links(sub, sub.name) + _local_links(sub, sub.name)
     manual = (_load_json(LINKS_FILE) or {}).get(name, [])
     links = [{**l, "kind": l.get("kind", "custom")} for l in manual] + links
+    names = (_load_json(NAMES_FILE) or {}).get(name, {})
     seen, unique = set(), []
     for l in links:
         if l["url"] not in seen:
             seen.add(l["url"])
-            unique.append(l)
+            unique.append({**l, "name": names[l["url"]]} if l["url"] in names else l)
     return unique
 
 
