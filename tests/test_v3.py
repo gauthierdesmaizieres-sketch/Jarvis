@@ -7,7 +7,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from jarvis import actions
+from jarvis import actions, inventory
 from jarvis.actions import chat_events
 from jarvis.history import NO_FOLDER, parse_usage, search_lines
 
@@ -94,9 +94,22 @@ def test_rename_link():
         assert names() == {}
 
 
+def test_moved_session():
+    with tempfile.TemporaryDirectory() as tmp:
+        inventory.CLAUDE_DIR = Path(tmp)
+        d = Path(tmp) / "projects" / "C--Users-me-Tama"
+        d.mkdir(parents=True)
+        cwd = lambda p: json.dumps({"type": "user", "cwd": p}, separators=(",", ":"))  # compact, like Claude Code's logs
+        # Started in a scratch folder, then a detour elsewhere, then moved to C:\Users\me\Tama.
+        (d / "s.jsonl").write_text("\n".join([cwd("C:\\x\\scratch-workspaces\\1"), cwd("C:\\dev\\Jarvis"),
+                                             cwd("C:\\Users\\me\\Tama")]), encoding="utf-8")
+        assert inventory._session_cwds() == {"C:\\Users\\me\\Tama"}
+
+
 if __name__ == "__main__":
     test_usage()
     test_search()
     test_chat_events()
     test_rename_link()
+    test_moved_session()
     print("ok")
