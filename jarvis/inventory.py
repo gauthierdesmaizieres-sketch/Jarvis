@@ -185,10 +185,14 @@ def _session_cwds():
             continue
         for jsonl in d.glob("*.jsonl"):
             with open(jsonl, encoding="utf-8", errors="replace") as f:
-                m = next((m for line in f if (m := CWD_RE.search(line))), None)
-            # A session moved out of a scratch folder starts there: try the next log.
-            if m and SCRATCH_MARKER not in m.group(1):
-                out.add(json.loads(f'"{m.group(1)}"'))
+                cwds = (json.loads(f'"{c}"') for line in f for c in CWD_RE.findall(line))
+                cwd = next(cwds, None)
+                # A session moved out of a scratch folder starts there; its log sits under
+                # the new folder's name, so find the cwd that Claude Code encoded into it.
+                if cwd and SCRATCH_MARKER in cwd:
+                    cwd = next((c for c in cwds if re.sub(r"[^A-Za-z0-9]", "-", c) == d.name), None)
+            if cwd:
+                out.add(cwd)
                 break
     return out
 
