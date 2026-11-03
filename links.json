@@ -16,7 +16,14 @@
   "Kobalt": [
     {
       "label": "APK Android",
-      "url": "https://github.com/gauthierdesmaizieres-sketch/labvoix/releases/latest",
+      "url": "https://github.com/gauthierdesmaizieres-sketch/Kobalt/releases/latest",
+      "kind": "custom"
+    }
+  ],
+  "labphoto": [
+    {
+      "label": "Paillasse · labo et envoi photos",
+      "url": "https://paillasse-labo.netlify.app",
       "kind": "custom"
     }
   ]
