@@ -256,13 +256,21 @@
 <main id="app"><p class="empty">// initialisation des systèmes…</p></main>
 
 <script>window.JARVIS_DATA = {
-"generatedAt": "2026-11-03T16:03:06.319308+00:00",
+"generatedAt": "2026-11-03T16:08:13.089462+00:00",
 "account": {},
 "globalClaudeMd": null,
 "skills": [
 {
 "name": "algorithmic-art",
 "description": "Creating algorithmic art using p5.js with seeded randomness and interactive parameter exploration. Use this when users request creating art using code, generative art, algorithmic art, flow fields, or particle systems. Create original algorithmic art rather than copying existing artists' work to avoid copyright violations.",
+"source": "user",
+"path": "",
+"usageCount": 0,
+"lastUsedAt": null
+},
+{
+"name": "animate",
+"description": "Build an animation from scratch, making the decisions in the order that determines whether it feels right — should it animate at all, what purpose, which tool, which properties, which curve and duration, how it interrupts, how it exits. Writes the implementation. Use when asked to animate something, add motion, make a component feel alive, or build a transition. For critiquing existing motion use review-animations; for auditing a whole codebase use improve-animations.",
 "source": "user",
 "path": "",
 "usageCount": 0,
@@ -293,6 +301,14 @@
 "lastUsedAt": null
 },
 {
+"name": "emil-design-eng",
+"description": "This skill encodes Emil Kowalski's philosophy on UI polish, component design, animation decisions, and the invisible details that make software feel great.",
+"source": "user",
+"path": "",
+"usageCount": 0,
+"lastUsedAt": null
+},
+{
 "name": "find-skills",
 "description": "Helps users discover and install agent skills when they ask questions like \"how do I do X\", \"find a skill for X\", \"is there a skill that can...\", or express interest in extending capabilities. This skill should be used when the user is looking for functionality that might exist as an installable skill.",
 "source": "user",
@@ -317,6 +333,30 @@
 "lastUsedAt": null
 },
 {
+"name": "hyperframes",
+"description": "Read first to make, edit, animate or render any video with HyperFrames (HTML rendered to video), including launch films, explainers, music videos, charts, maps, vertical clips, title cards, captions and overlays. Holds the render contract, the work loop and what each kind of video needs.",
+"source": "user",
+"path": "",
+"usageCount": 0,
+"lastUsedAt": null
+},
+{
+"name": "hyperframes-cli",
+"description": "The HyperFrames CLI by job - scaffold, check, look at frames, edit the timeline, preview, render locally or in the cloud, publish, project history - plus reading its JSON and recovering from build or render failures.",
+"source": "user",
+"path": "",
+"usageCount": 0,
+"lastUsedAt": null
+},
+{
+"name": "impeccable",
+"description": "Use when the user wants to design, redesign, shape, critique, audit, polish, simplify, harden, animate, or otherwise improve a frontend interface: websites, landing pages, dashboards, product UI, components, forms, settings, onboarding, empty states, and native iOS or Android screens. Handles UX review, hierarchy, layout, typography, color, motion, UX copy, accessibility, responsive behavior, edge cases, and capturing or documenting design systems (DESIGN.md, tokens). Also for making bland UI bolder, loud UI quieter, or ambitious visual effects. Not for backend-only or non-UI tasks.",
+"source": "user",
+"path": "",
+"usageCount": 0,
+"lastUsedAt": null
+},
+{
 "name": "internal-comms",
 "description": "A set of resources to help me write all kinds of internal communications, using the formats that my company likes to use. Claude should use this skill whenever asked to write some sort of internal communications (status reports, leadership updates, 3P updates, company newsletters, FAQs, incident reports, project updates, etc.).",
 "source": "user",
@@ -327,6 +367,14 @@
 {
 "name": "mcp-builder",
 "description": "Guide for creating high-quality MCP (Model Context Protocol) servers that enable LLMs to interact with external services through well-designed tools. Use when building MCP servers to integrate external APIs or services, whether in Python (FastMCP) or Node/TypeScript (MCP SDK).",
+"source": "user",
+"path": "",
+"usageCount": 0,
+"lastUsedAt": null
+},
+{
+"name": "media-use",
+"description": "Get or make any media for a HyperFrames video - music, sound effects, images, icons, logos, voiceover, avatar and generated video, transcripts, cutouts, colour grades and looks - with HeyGen or free local tools, and mix placed audio. Also for footage that looks dark, flat or dull, or should be stylized or hidden.",
 "source": "user",
 "path": "",
 "usageCount": 0,
@@ -421,8 +469,24 @@
 "lastUsedAt": null
 },
 {
+"name": "review-animations",
+"description": "Reviews animation and motion code against a high craft bar derived from Emil Kowalski's design engineering philosophy. Default to flagging; approval is earned.",
+"source": "user",
+"path": "",
+"usageCount": 0,
+"lastUsedAt": null
+},
+{
 "name": "slack-gif-creator",
 "description": "Knowledge and utilities for creating animated GIFs optimized for Slack. Provides constraints, validation tools, and animation concepts. Use when users request animated GIFs for Slack like \"make me a GIF of X doing Y for Slack.",
+"source": "user",
+"path": "",
+"usageCount": 0,
+"lastUsedAt": null
+},
+{
+"name": "slideshow",
+"description": "Build a HyperFrames slideshow to present live - slides, fragment reveals, branching hotspots and presenter mode with speaker notes, served by `hyperframes present` - or turn an existing page into one. Use when the person wants a deck or presentation rather than a rendered video.",
 "source": "user",
 "path": "",
 "usageCount": 0,
@@ -546,7 +610,7 @@
 {
 "name": "claude-plugins-official",
 "url": "https://github.com/anthropics/claude-plugins-official.git",
-"lastUpdated": "2026-11-03T15:49:52.485Z"
+"lastUpdated": "2026-11-03T16:05:58.190Z"
 },
 {
 "name": "ponytail",
@@ -556,7 +620,7 @@
 {
 "name": "anthropic-agent-skills",
 "url": "anthropics/skills",
-"lastUpdated": "2026-11-03T15:49:53.735Z"
+"lastUpdated": "2026-11-03T16:05:58.681Z"
 }
 ],
 "mcpServers": [
