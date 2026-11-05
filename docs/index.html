@@ -69,7 +69,7 @@
               cursor: pointer; font: 16px var(--mono); }
   .icon-btn:hover { box-shadow: var(--glow); border-color: var(--cyan); }
 
-  main { max-width: 1240px; margin: 0 auto; padding-block: 24px 70px;
+  main { max-width: 1240px; margin: 0 auto; padding-block: 24px 130px;  /* room for Wisp at the bottom */
          padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); position: relative; z-index: 1; }
 
   /* --- Arc reactor hero --- */
@@ -238,6 +238,52 @@
     .r5 { inset: 66px; } .r4 { inset: 46px; } .r3 { inset: 30px; }
     .reactor .label { font-size: 16px; } .reactor .sub { bottom: 80px; }
   }
+  /* --- Wisp, the mascot (prototype: wisp.html). transform/opacity only, ease-out. --- */
+  .wisp { --ease-out: cubic-bezier(0.23, 1, 0.32, 1); --a: #5DCAA5; --b: #9FE1CB; --k: #04342C;
+          position: fixed; z-index: 4; left: max(16px, env(safe-area-inset-left, 0px)); bottom: max(16px, env(safe-area-inset-bottom, 0px));
+          width: 96px; height: 96px; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+  .wisp svg { width: 100%; height: 100%; overflow: visible; }
+  .wisp svg * { transform-box: fill-box; }
+  .wisp[data-mood=angry] { --a: #E24B4A; --b: #F09595; --k: #501313; }
+  .wisp[data-mood=gg] { --a: #EF9F27; --b: #FAC775; --k: #412402; }
+  .wisp[data-mood=sleep] { --a: #378ADD; --b: #B5D4F4; --k: #042C53; }
+  .wisp .fa { fill: var(--a); } .wisp .fb { fill: var(--b); } .wisp .fk { fill: var(--k); } .wisp .sk { stroke: var(--k); }
+  .wisp .fa, .wisp .fb, .wisp .fk { transition: fill 250ms ease; } .wisp .sk { transition: stroke 250ms ease; }
+  .wisp .float { animation: w-float 3.2s cubic-bezier(0.77, 0, 0.175, 1) infinite alternate; }
+  .wisp .flame { transform-origin: 50% 100%; animation: w-flick 1.4s ease-in-out infinite alternate; transition: transform 250ms var(--ease-out); }
+  .wisp[data-mood=angry] .flame { transform: scale(1.08, 1.16); animation-duration: .32s; }
+  .wisp[data-mood=sleep] .flame { transform: scale(1, .92); animation-duration: 3s; }
+  .wisp[data-mood=gg] .float { animation: w-hop .5s var(--ease-out) infinite alternate; }
+  .wisp[data-mood=angry] .float { animation: w-rage .09s linear infinite alternate; }
+  @keyframes w-float { to { transform: translateY(-8px); } }
+  @keyframes w-flick { to { transform: scale(.97, 1.04); } }
+  @keyframes w-hop { to { transform: translateY(-14px); } }
+  @keyframes w-rage { to { transform: translateX(2px); } }
+  .wisp .e { opacity: 0; transition: opacity 150ms var(--ease-out); }
+  .wisp[data-mood=idle] .e-idle, .wisp[data-mood=sly] .e-sly, .wisp[data-mood=think] .e-think, .wisp[data-mood=sleep] .e-sleep,
+  .wisp[data-mood=wow] .e-wow, .wisp[data-mood=angry] .e-angry, .wisp[data-mood=gg] .e-gg { opacity: 1; }
+  .wisp .blink { transform-origin: 50% 50%; animation: w-blink 4.5s infinite; }
+  @keyframes w-blink { 0%, 93%, 100% { transform: scaleY(1); } 96% { transform: scaleY(.1); } }
+  .wisp .fx { opacity: 0; transition: opacity 200ms ease; }
+  .wisp[data-mood=angry] .fx-angry, .wisp[data-mood=sleep] .fx-sleep, .wisp[data-mood=gg] .fx-gg, .wisp[data-mood=think] .fx-think { opacity: 1; }
+  .wisp .rise { animation: w-rise 1.6s ease-out infinite; }
+  .wisp .rise:nth-child(2) { animation-delay: .5s; } .wisp .rise:nth-child(3) { animation-delay: 1s; }
+  @keyframes w-rise { from { transform: translateY(0); opacity: 1; } to { transform: translateY(-30px); opacity: 0; } }
+  .wisp .dot { animation: w-dot 1.2s ease-in-out infinite; }
+  .wisp .dot:nth-child(2) { animation-delay: .2s; } .wisp .dot:nth-child(3) { animation-delay: .4s; }
+  @keyframes w-dot { 50% { opacity: .25; } }
+  /* The bubble grows from Wisp's corner, so it never leaves the screen on the left. */
+  .wisp .bubble { position: absolute; bottom: 100%; left: 8px; width: max-content; max-width: min(240px, calc(100vw - 48px));
+                  padding: 8px 12px; border-radius: 12px 12px 12px 4px; background: rgba(11, 18, 38, .92); border: 1px solid var(--line);
+                  color: var(--text); font: 13px/1.4 var(--body); transform-origin: 0 100%; transform: translateY(4px) scale(.95);
+                  opacity: 0; pointer-events: none; transition: opacity 200ms var(--ease-out), transform 200ms var(--ease-out); }
+  .wisp .bubble.show { opacity: 1; transform: translateY(-4px) scale(1); }
+  .wisp[data-mood=angry] .bubble { border-color: #E24B4A; font-weight: 600; }
+  @media (max-width: 640px) { .wisp { width: 64px; height: 64px; } }
+  @media (prefers-reduced-motion: reduce) {
+    .wisp[data-mood=angry] .flame, .wisp[data-mood=sleep] .flame { transform: none; }
+    .wisp .bubble, .wisp .bubble.show { transform: translateY(-4px); }
+  }
   @media (prefers-reduced-motion: reduce) { * { animation: none !important; } }
 </style>
 </head>
@@ -254,9 +300,31 @@
 <pre id="out" hidden></pre>
 <div id="share" hidden></div>
 <main id="app"><p class="empty">// initialisation des systèmes…</p></main>
+<div class="wisp" id="wisp" data-mood="idle" role="img" aria-label="Wisp, la mascotte">
+  <div class="bubble" id="wisp-bubble" aria-live="polite"></div>
+  <svg viewBox="0 0 120 120" aria-hidden="true">
+    <g class="float">
+      <g class="flame">
+        <path class="fa" d="M60 10c4 22 34 36 34 62a34 34 0 0 1-68 0c0-14 8-20 12-30 4 10 10 12 12 12 0-16 6-30 10-44z"/>
+        <ellipse class="fb" cx="60" cy="78" rx="20" ry="20"/>
+      </g>
+      <g class="e e-idle"><g class="blink"><ellipse class="fk" cx="52" cy="76" rx="4" ry="6"/><ellipse class="fk" cx="68" cy="76" rx="4" ry="6"/></g></g>
+      <g class="e e-sly"><path class="sk" d="M47 76h10M63 76h10" stroke-width="3" stroke-linecap="round"/><ellipse class="fk" cx="54" cy="78" rx="3" ry="2.5"/><ellipse class="fk" cx="70" cy="78" rx="3" ry="2.5"/><path class="sk" d="M54 87q7 4 12-2" stroke-width="2.5" fill="none" stroke-linecap="round"/></g>
+      <g class="e e-think"><ellipse class="fk" cx="55" cy="72" rx="4" ry="5"/><ellipse class="fk" cx="71" cy="72" rx="4" ry="5"/><path class="sk" d="M56 88h8" stroke-width="2.5" stroke-linecap="round"/></g>
+      <g class="e e-sleep"><path class="sk" d="M47 78q5 4 10 0M63 78q5 4 10 0" stroke-width="3" fill="none" stroke-linecap="round"/></g>
+      <g class="e e-wow"><circle class="fk" cx="52" cy="74" r="6"/><circle class="fk" cx="68" cy="74" r="6"/><circle cx="54" cy="72" r="2" fill="#fff"/><circle cx="70" cy="72" r="2" fill="#fff"/><ellipse class="fk" cx="60" cy="89" rx="3.5" ry="4.5"/></g>
+      <g class="e e-angry"><path class="sk" d="M45 68l12 5M75 68l-12 5" stroke-width="3" stroke-linecap="round"/><ellipse class="fk" cx="52" cy="78" rx="4" ry="3.5"/><ellipse class="fk" cx="68" cy="78" rx="4" ry="3.5"/><path class="sk" d="M53 91q7-6 14 0" stroke-width="2.5" fill="none" stroke-linecap="round"/></g>
+      <g class="e e-gg"><path class="sk" d="M47 78q5-7 10 0M63 78q5-7 10 0" stroke-width="3" fill="none" stroke-linecap="round"/><path class="sk" d="M54 86q6 6 12 0" stroke-width="2.5" fill="none" stroke-linecap="round"/></g>
+    </g>
+    <g class="fx fx-angry"><circle class="rise" cx="30" cy="40" r="3" fill="#E24B4A"/><circle class="rise" cx="92" cy="34" r="3.5" fill="#EF9F27"/><circle class="rise" cx="80" cy="18" r="2.5" fill="#E24B4A"/></g>
+    <g class="fx fx-sleep"><text class="rise" x="90" y="34" font-size="14" font-weight="600" fill="#378ADD">z</text><text class="rise" x="100" y="22" font-size="11" font-weight="600" fill="#378ADD">z</text></g>
+    <g class="fx fx-gg"><path class="rise" d="M20 40l3 7 7 3-7 3-3 7-3-7-7-3 7-3z" fill="#EF9F27"/><path class="rise" d="M100 30l2 5 5 2-5 2-2 5-2-5-5-2 5-2z" fill="#EF9F27"/></g>
+    <g class="fx fx-think"><circle class="dot" cx="88" cy="34" r="3" fill="#5DCAA5"/><circle class="dot" cx="98" cy="26" r="4" fill="#5DCAA5"/><circle class="dot" cx="108" cy="16" r="5" fill="#5DCAA5"/></g>
+  </svg>
+</div>
 
 <script>window.JARVIS_DATA = {
-"generatedAt": "2026-11-05T16:20:20.013849+00:00",
+"generatedAt": "2026-11-05T16:23:34.119913+00:00",
 "account": {},
 "globalClaudeMd": null,
 "skills": [
@@ -638,7 +706,7 @@
 {
 "name": "claude-plugins-official",
 "url": "https://github.com/anthropics/claude-plugins-official.git",
-"lastUpdated": "2026-11-05T16:19:04.459Z"
+"lastUpdated": "2026-11-05T16:21:39.345Z"
 },
 {
 "name": "ponytail",
@@ -648,7 +716,7 @@
 {
 "name": "anthropic-agent-skills",
 "url": "anthropics/skills",
-"lastUpdated": "2026-11-05T16:19:05.581Z"
+"lastUpdated": "2026-11-05T16:21:39.868Z"
 },
 {
 "name": "lemolab",
@@ -2020,6 +2088,68 @@ if (TOKEN && sharedText) {
 }
 renderTabs();
 load();
+</script>
+<script>
+// --- Wisp, the mascot: malin, complice, taquin; flamer when spammed. Moods follow the live sessions. ---
+(() => {
+  const LINES = {
+    idle:  ["Psst. Je traîne dans le coin.", "T'as besoin de moi ou tu fais semblant de bosser ?", "Je connais un raccourci. Comme toujours."],
+    sly:   ["Hé hé. J'ai vu ce que t'as fait.", "Laisse, je gère. Enfin… on gère.", "Tu me dois une, là."],
+    think: ["Laisse-moi cuire deux secondes…", "Je farm l'info, bouge pas.", "Hmm. Ça sent le plan foireux. J'adore."],
+    sleep: ["zzz… pas maintenant…", "AFK. Reviens plus tard.", "Je recharge mon mana…"],
+    wow:   ["Oh ? Notif fraîche, ça sent le loot.", "Attends attends attends. C'est quoi ça ?", "Ping ! Quelqu'un te cherche."],
+    angry: ["Sérieux ?! T'appelles ça un build ?", "Arrête de me spam, je vais tilt !", "Gg no re. Je ragequit.", "Diff total. J'écris ton report."],
+    gg:    ["GG EZ. Trop facile pour nous.", "Carry comme d'hab. Pas de quoi.", "Objectif sécurisé. Next !"],
+  };
+  // What a live session state means, said when it changes.
+  const LIVE = { think: "Claude bosse. Je surveille.", wow: "Ping ! Une session attend ta réponse.", gg: "Session finie. GG !" };
+  const el = document.getElementById("wisp"), bubble = document.getElementById("wisp-bubble");
+  let hideT, sleepT, clicks = [], live = "idle";
+
+  function say(text) {
+    bubble.classList.remove("show");
+    requestAnimationFrame(() => { bubble.textContent = text; bubble.classList.add("show"); });
+    clearTimeout(hideT);
+    hideT = setTimeout(() => bubble.classList.remove("show"), 3200);
+  }
+  const pick = a => a[Math.floor(Math.random() * a.length)];
+
+  function setMood(m, talk = true) {
+    el.dataset.mood = m;
+    if (talk) say(pick(LINES[m]));
+    // 30 s without activity: he falls asleep, unless a session is still working or waiting.
+    clearTimeout(sleepT);
+    if (m !== "sleep") sleepT = setTimeout(() => setMood(live === "think" || live === "wow" ? live : "sleep", false), 30000);
+  }
+
+  el.addEventListener("click", () => {
+    const now = Date.now();
+    clicks = clicks.filter(t => now - t < 2000).concat(now);
+    if (clicks.length >= 5) { clicks = []; setMood("angry"); setTimeout(() => setMood("sly"), 4000); return; }
+    if (el.dataset.mood === "angry") return;  // you don't calm a flamer down by clicking
+    setMood(Math.random() < .5 ? "sly" : "idle");
+  });
+
+  // API for Jarvis and the apps: wisp("gg") or wisp("angry", "Build cassé !")
+  window.wisp = (m, text) => { setMood(m, !text); if (text) say(text); };
+
+  // Only the local server knows the sessions: the online copies keep a plain Wisp.
+  async function poll() {
+    if (document.hidden) return;
+    try {
+      const r = await api("/api/activity");
+      if (!r.ok) return;
+      const { mood } = await r.json();
+      if (mood === live) return;
+      live = mood;
+      if (el.dataset.mood !== "angry") { setMood(mood, false); if (LIVE[mood]) say(LIVE[mood]); }
+    } catch {}
+  }
+  setMood("idle", false);
+  if (TOKEN) { poll(); setInterval(poll, 5000); }
+
+  for (const m in LINES) console.assert(document.querySelector(".wisp .e-" + m), "humeur sans visage : " + m);
+})();
 </script>
 </body>
 </html>
