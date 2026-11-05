@@ -26,5 +26,12 @@
       "url": "https://paillasse-labo.netlify.app",
       "kind": "custom"
     }
+  ],
+  "Jarvis": [
+    {
+      "label": "Compte à rebours · Gucks dir an",
+      "url": "https://claude.ai/artifact/VR8Swz9XiqVwq6bi4FenNq",
+      "kind": "custom"
+    }
   ]
 }
