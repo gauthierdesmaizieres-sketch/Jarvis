@@ -5,6 +5,7 @@ Read-only. Only server.py calls these, after the same checks as the actions.
 
 import json
 import threading
+import time
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
@@ -149,3 +150,46 @@ def search(query, limit=50):
         if len(out) >= limit:
             break
     return out[:limit]
+
+
+# --- Live activity (Wisp's moods) ---------------------------------------------
+
+def session_state(lines, age):
+    """'working', 'waiting', 'done' or 'idle' for one session log, from its last turn
+    and `age`, the seconds since the log was last written."""
+    last = None
+    for l in lines:
+        try:
+            rec = json.loads(l)
+        except ValueError:
+            continue
+        if rec.get("type") in ("user", "assistant") and not rec.get("isSidechain"):
+            last = rec
+    if not last:
+        return "idle"
+    stop = (last.get("message") or {}).get("stop_reason")
+    if last["type"] == "assistant" and stop in ("end_turn", "stop_sequence"):
+        return "done" if age < 120 else "idle"
+    if last["type"] == "assistant" and stop == "tool_use" and age >= 30:
+        # shortcut: a tool call that sits unanswered is read as a permission prompt; a long
+        # command (build, tests) looks the same. Upgrade if Claude Code ever logs the prompt itself.
+        return "waiting" if age < 600 else "idle"
+    return "working" if age < 120 else "idle"
+
+
+def activity():
+    """Live state of the sessions written in the last 10 minutes, plus the overall mood."""
+    now = time.time()
+    out = []
+    for f in PROJECTS.glob("*/*.jsonl"):
+        age = now - f.stat().st_mtime
+        if age > 600:
+            continue
+        with open(f, "rb") as fh:  # the last turn is in the tail (1 MB: request blobs can be big)
+            start = fh.seek(max(0, fh.seek(0, 2) - (1 << 20)))
+            lines = fh.read().decode("utf-8", "replace").splitlines()[1 if start else 0:]  # drop the cut line
+        out.append({"session": f.stem, "state": session_state(lines, age), "age": round(age)})
+    states = {s["state"] for s in out}
+    mood = next((m for st, m in (("waiting", "wow"), ("working", "think"), ("done", "gg")) if st in states),
+                "idle" if out else "sleep")
+    return {"mood": mood, "sessions": out}

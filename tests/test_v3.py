@@ -9,7 +9,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from jarvis import actions, inventory
 from jarvis.actions import chat_events
-from jarvis.history import NO_FOLDER, parse_usage, search_lines
+from jarvis.history import NO_FOLDER, parse_usage, search_lines, session_state
 
 
 def line(**rec):
@@ -106,10 +106,23 @@ def test_moved_session():
         assert inventory._session_cwds() == {"C:\\Users\\me\\Tama"}
 
 
+def test_session_state():
+    turn = lambda stop: line(type="assistant", message={"stop_reason": stop, "content": []})
+    prompt = line(type="user", message={"content": "go"})
+    assert session_state([prompt], 5) == "working"
+    assert session_state([prompt, turn("tool_use")], 5) == "working"
+    assert session_state([prompt, turn("tool_use")], 60) == "waiting"  # unanswered tool call: permission prompt
+    assert session_state([prompt, turn("end_turn")], 10) == "done"
+    assert session_state([prompt, turn("end_turn")], 300) == "idle"
+    assert session_state([prompt, turn("end_turn"), line(type="attachment"), "cut {"], 10) == "done"
+    assert session_state([], 1) == "idle"
+
+
 if __name__ == "__main__":
     test_usage()
     test_search()
     test_chat_events()
     test_rename_link()
     test_moved_session()
+    test_session_state()
     print("ok")

@@ -70,6 +70,7 @@ class Handler(BaseHTTPRequestHandler):
         path, qs = url.path, parse_qs(url.query)
         private = {
             "/api/usage": lambda: history.usage(),
+            "/api/activity": lambda: history.activity(),
             "/api/search": lambda: history.search(qs.get("q", [""])[0], min(int(qs.get("limit", ["50"])[0]), 200)),
             "/api/git": lambda: actions.git_overview(fetch=qs.get("fetch") == ["1"]),
         }

@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wisp</title>
+<style>
+:root{--ease-out:cubic-bezier(0.23,1,0.32,1);--bg:#f6f5f1;--fg:#2c2c2a;--card:#fff;--line:#d3d1c7}
+@media (prefers-color-scheme:dark){:root{--bg:#1c1c1a;--fg:#f1efe8;--card:#2c2c2a;--line:#444441}}
+body{margin:0;min-height:100vh;display:grid;place-items:center;background:var(--bg);color:var(--fg);font:15px/1.5 system-ui,sans-serif}
+.stage{display:flex;flex-direction:column;align-items:center;gap:16px;padding:16px}
+.wisp{position:relative;width:200px;height:200px;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.wisp svg{width:100%;height:100%;overflow:visible}
+svg *{transform-box:fill-box}
+
+/* couleurs par humeur : la transition de fill fait glisser la flamme vers le rouge */
+.wisp{--a:#5DCAA5;--b:#9FE1CB;--k:#04342C}
+.wisp[data-mood=angry]{--a:#E24B4A;--b:#F09595;--k:#501313}
+.wisp[data-mood=gg]{--a:#EF9F27;--b:#FAC775;--k:#412402}
+.wisp[data-mood=sleep]{--a:#378ADD;--b:#B5D4F4;--k:#042C53}
+.fa{fill:var(--a)}.fb{fill:var(--b)}.fk{fill:var(--k)}.sk{stroke:var(--k)}
+.fa,.fb,.fk{transition:fill 250ms ease}.sk{transition:stroke 250ms ease}
+
+/* idle : flottement + vacillement de la flamme, en boucle CSS (hors thread principal) */
+.float{animation:float 3.2s cubic-bezier(0.77,0,0.175,1) infinite alternate}
+.flame{transform-origin:50% 100%;animation:flick 1.4s ease-in-out infinite alternate;transition:transform 250ms var(--ease-out)}
+.wisp[data-mood=angry] .flame{transform:scale(1.08,1.16);animation-duration:.32s}
+.wisp[data-mood=sleep] .flame{transform:scale(1,.92);animation-duration:3s}
+.wisp[data-mood=gg] .float{animation:hop .5s var(--ease-out) infinite alternate}
+.wisp[data-mood=angry] .float{animation:rage .09s linear infinite alternate}
+@keyframes float{to{transform:translateY(-8px)}}
+@keyframes flick{to{transform:scale(.97,1.04)}}
+@keyframes hop{to{transform:translateY(-14px)}}
+@keyframes rage{to{transform:translateX(2px)}}
+
+/* visages : fondu croisé entre groupes */
+.e{opacity:0;transition:opacity 150ms var(--ease-out)}
+.wisp[data-mood=idle] .e-idle,.wisp[data-mood=sly] .e-sly,.wisp[data-mood=think] .e-think,
+.wisp[data-mood=sleep] .e-sleep,.wisp[data-mood=wow] .e-wow,.wisp[data-mood=angry] .e-angry,
+.wisp[data-mood=gg] .e-gg{opacity:1}
+.blink{transform-origin:50% 50%;animation:blink 4.5s infinite}
+@keyframes blink{0%,93%,100%{transform:scaleY(1)}96%{transform:scaleY(.1)}}
+
+/* particules : braises si énervé, z si dort, étincelles si GG */
+.fx{opacity:0;transition:opacity 200ms ease}
+.wisp[data-mood=angry] .fx-angry,.wisp[data-mood=sleep] .fx-sleep,.wisp[data-mood=gg] .fx-gg,.wisp[data-mood=think] .fx-think{opacity:1}
+.rise{animation:rise 1.6s ease-out infinite}
+.rise:nth-child(2){animation-delay:.5s}.rise:nth-child(3){animation-delay:1s}
+@keyframes rise{from{transform:translateY(0);opacity:1}to{transform:translateY(-30px);opacity:0}}
+.dot{animation:dot 1.2s ease-in-out infinite}.dot:nth-child(2){animation-delay:.2s}.dot:nth-child(3){animation-delay:.4s}
+@keyframes dot{50%{opacity:.25}}
+
+/* bulle : part de Wisp (origine en bas), entre et sort par la même transition */
+.bubble{position:absolute;bottom:100%;left:50%;width:max-content;max-width:240px;padding:8px 12px;border-radius:12px;
+  background:var(--card);border:1px solid var(--line);font-size:14px;text-align:center;
+  transform-origin:50% 100%;transform:translate(-50%,4px) scale(.95);opacity:0;pointer-events:none;
+  transition:opacity 200ms var(--ease-out),transform 200ms var(--ease-out)}
+.bubble.show{opacity:1;transform:translate(-50%,-6px) scale(1)}
+.wisp[data-mood=angry] .bubble{border-color:#E24B4A;font-weight:600}
+
+.moods{display:flex;flex-wrap:wrap;justify-content:center;gap:6px;max-width:420px}
+.moods button{font:inherit;font-size:13px;padding:6px 12px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--fg);cursor:pointer;transition:transform 120ms var(--ease-out)}
+.moods button:active{transform:scale(.97)}
+.hint{font-size:13px;opacity:.6;margin:0}
+
+@media (prefers-reduced-motion:reduce){
+  .float,.flame,.rise,.wisp[data-mood] .float{animation:none}
+  .wisp[data-mood=angry] .flame{transform:none}
+  .bubble,.bubble.show{transform:translate(-50%,-6px)}
+}
+</style>
+</head>
+<body>
+<div class="stage">
+  <div class="wisp" id="wisp" data-mood="idle" role="img" aria-label="Wisp, la mascotte">
+    <div class="bubble" id="bubble" aria-live="polite"></div>
+    <svg viewBox="0 0 120 120">
+      <g class="float">
+        <g class="flame">
+          <path class="fa" d="M60 10c4 22 34 36 34 62a34 34 0 0 1-68 0c0-14 8-20 12-30 4 10 10 12 12 12 0-16 6-30 10-44z"/>
+          <ellipse class="fb" cx="60" cy="78" rx="20" ry="20"/>
+        </g>
+        <g class="e e-idle"><g class="blink"><ellipse class="fk" cx="52" cy="76" rx="4" ry="6"/><ellipse class="fk" cx="68" cy="76" rx="4" ry="6"/></g></g>
+        <g class="e e-sly"><path class="sk" d="M47 76h10M63 76h10" stroke-width="3" stroke-linecap="round"/><ellipse class="fk" cx="54" cy="78" rx="3" ry="2.5"/><ellipse class="fk" cx="70" cy="78" rx="3" ry="2.5"/><path class="sk" d="M54 87q7 4 12-2" stroke-width="2.5" fill="none" stroke-linecap="round"/></g>
+        <g class="e e-think"><ellipse class="fk" cx="55" cy="72" rx="4" ry="5"/><ellipse class="fk" cx="71" cy="72" rx="4" ry="5"/><path class="sk" d="M56 88h8" stroke-width="2.5" stroke-linecap="round"/></g>
+        <g class="e e-sleep"><path class="sk" d="M47 78q5 4 10 0M63 78q5 4 10 0" stroke-width="3" fill="none" stroke-linecap="round"/></g>
+        <g class="e e-wow"><circle class="fk" cx="52" cy="74" r="6"/><circle class="fk" cx="68" cy="74" r="6"/><circle cx="54" cy="72" r="2" fill="#fff"/><circle cx="70" cy="72" r="2" fill="#fff"/><ellipse class="fk" cx="60" cy="89" rx="3.5" ry="4.5"/></g>
+        <g class="e e-angry"><path class="sk" d="M45 68l12 5M75 68l-12 5" stroke-width="3" stroke-linecap="round"/><ellipse class="fk" cx="52" cy="78" rx="4" ry="3.5"/><ellipse class="fk" cx="68" cy="78" rx="4" ry="3.5"/><path class="sk" d="M53 91q7-6 14 0" stroke-width="2.5" fill="none" stroke-linecap="round"/></g>
+        <g class="e e-gg"><path class="sk" d="M47 78q5-7 10 0M63 78q5-7 10 0" stroke-width="3" fill="none" stroke-linecap="round"/><path class="sk" d="M54 86q6 6 12 0" stroke-width="2.5" fill="none" stroke-linecap="round"/></g>
+      </g>
+      <g class="fx fx-angry"><circle class="rise" cx="30" cy="40" r="3" fill="#E24B4A"/><circle class="rise" cx="92" cy="34" r="3.5" fill="#EF9F27"/><circle class="rise" cx="80" cy="18" r="2.5" fill="#E24B4A"/></g>
+      <g class="fx fx-sleep"><text class="rise" x="90" y="34" font-size="14" font-weight="600" fill="#378ADD">z</text><text class="rise" x="100" y="22" font-size="11" font-weight="600" fill="#378ADD">z</text></g>
+      <g class="fx fx-gg"><path class="rise" d="M20 40l3 7 7 3-7 3-3 7-3-7-7-3 7-3z" fill="#EF9F27"/><path class="rise" d="M100 30l2 5 5 2-5 2-2 5-2-5-5-2 5-2z" fill="#EF9F27"/></g>
+      <g class="fx fx-think"><circle class="dot" cx="88" cy="34" r="3" fill="#5DCAA5"/><circle class="dot" cx="98" cy="26" r="4" fill="#5DCAA5"/><circle class="dot" cx="108" cy="16" r="5" fill="#5DCAA5"/></g>
+    </svg>
+  </div>
+  <div class="moods" id="moods"></div>
+  <p class="hint">Clique sur Wisp. Pas trop vite.</p>
+</div>
+<script>
+// Personnalité : malin, complice, taquin ; passe en mode flamer quand on l'énerve.
+const LINES = {
+  idle:  ["Psst. Je traîne dans le coin.", "T'as besoin de moi ou tu fais semblant de bosser ?", "Je connais un raccourci. Comme toujours."],
+  sly:   ["Hé hé. J'ai vu ce que t'as fait.", "Laisse, je gère. Enfin… on gère.", "Tu me dois une, là."],
+  think: ["Laisse-moi cuire deux secondes…", "Je farm l'info, bouge pas.", "Hmm. Ça sent le plan foireux. J'adore."],
+  sleep: ["zzz… pas maintenant…", "AFK. Reviens plus tard.", "Je recharge mon mana…"],
+  wow:   ["Oh ? Notif fraîche, ça sent le loot.", "Attends attends attends. C'est quoi ça ?", "Ping ! Quelqu'un te cherche."],
+  angry: ["Sérieux ?! T'appelles ça un build ?", "Arrête de me spam, je vais tilt !", "Gg no re. Je ragequit.", "Diff total. J'écris ton report."],
+  gg:    ["GG EZ. Trop facile pour nous.", "Carry comme d'hab. Pas de quoi.", "Objectif sécurisé. Next !"]
+};
+const NAMES = {idle:"Neutre", sly:"Malin", think:"Réfléchit", sleep:"Dort", wow:"Surpris", angry:"Énervé", gg:"GG"};
+
+const el = document.getElementById("wisp"), bubble = document.getElementById("bubble");
+let hideT, sleepT, clicks = [];
+
+function say(text) {
+  bubble.classList.remove("show");
+  requestAnimationFrame(() => { bubble.textContent = text; bubble.classList.add("show"); });
+  clearTimeout(hideT);
+  hideT = setTimeout(() => bubble.classList.remove("show"), 3200);
+}
+const pick = a => a[Math.floor(Math.random() * a.length)];
+
+function setMood(m, talk = true) {
+  el.dataset.mood = m;
+  if (talk) say(pick(LINES[m]));
+  // Sans interaction pendant 30 s, il s'endort.
+  clearTimeout(sleepT);
+  if (m !== "sleep") sleepT = setTimeout(() => setMood("sleep"), 30000);
+}
+
+el.addEventListener("click", () => {
+  const now = Date.now();
+  clicks = clicks.filter(t => now - t < 2000).concat(now);
+  if (clicks.length >= 5) { clicks = []; setMood("angry"); setTimeout(() => setMood("sly"), 4000); return; }
+  if (el.dataset.mood === "angry") return; // on ne calme pas un flamer en cliquant
+  setMood(Math.random() < .5 ? "sly" : "idle");
+});
+
+document.getElementById("moods").append(...Object.keys(NAMES).map(m => {
+  const b = document.createElement("button");
+  b.textContent = NAMES[m];
+  b.onclick = () => setMood(m);
+  return b;
+}));
+
+// API pour Jarvis / tes apps : window.wisp("gg") ou window.wisp("angry", "Build cassé !")
+window.wisp = (m, text) => { setMood(m, !text); if (text) say(text); };
+
+setMood("idle");
+
+// self-check : chaque humeur a des répliques et un visage
+for (const m in NAMES) console.assert(LINES[m]?.length && document.querySelector(".e-" + m), "humeur incomplète: " + m);
+</script>
+</body>
+</html>

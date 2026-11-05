@@ -69,6 +69,17 @@ Dans le chat, **Micro** dicte ton message et **Voix · on** lit les réponses à
 - **PC éteint** : seules la page publique et l'Artifact marchent (lecture seule, état du dernier envoi). Le chat, git et la recherche ont besoin du PC. Pour coder sans le PC, utilise les sessions cloud de claude.ai/code.
 - **Claude Code depuis l'app Claude du téléphone** : Remote Control est activé pour les nouvelles sessions.
 
+### Wisp, la mascotte
+
+En bas à gauche du dashboard, Wisp suit tes sessions Claude Code grâce à `GET /api/activity`, qui lit la fin des journaux de sessions écrits dans les 10 dernières minutes :
+
+- **Réfléchit** : une session travaille ;
+- **Surpris** : une session attend ta réponse (un appel d'outil sans réponse depuis plus de 30 s, donc souvent une demande de permission ; une commande longue peut donner la même chose) ;
+- **GG** : une session vient de finir (moins de 2 min) ;
+- **Dort** : rien depuis 10 min, ou 30 s sans aucune activité.
+
+Cinq clics en 2 s le font passer en mode flamer. `wisp("gg", "texte")` dans la console change son humeur. Le prototype autonome est dans [wisp.html](wisp.html). Sur les copies en ligne, il ne réagit qu'aux clics.
+
 `python tests/test_v3.py` vérifie le parseur de tokens, la recherche et la lecture du flux du chat.
 
 ### Version en ligne (téléphone, PC éteint)
