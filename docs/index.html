@@ -324,7 +324,7 @@
 </div>
 
 <script>window.JARVIS_DATA = {
-"generatedAt": "2026-11-06T16:34:48.395911+00:00",
+"generatedAt": "2026-11-06T16:36:44.677813+00:00",
 "account": {},
 "globalClaudeMd": null,
 "skills": [
@@ -1521,7 +1521,7 @@ const BASE_TABS = [
   ["mcp", "MCP"], ["plugins", "Plugins"], ["config", "Config"],
 ];
 // Need the local server: never shown on the online copies.
-const LOCAL_TABS = [["chat", "Chat"], ["usage", "Usage"], ["search", "Recherche"], ["git", "Git"]];
+const LOCAL_TABS = [["board", "Mes projets"], ["chat", "Chat"], ["usage", "Usage"], ["search", "Recherche"], ["git", "Git"]];
 const ROADMAP = [
   { v: "v1", title: "Inventaire", status: "En ligne", live: true, items: [
     ["Projets & sessions", "Activité, état git, premiers prompts"],
@@ -1788,7 +1788,7 @@ const fmt = n => n >= 1e9 ? `${(n / 1e9).toFixed(1)} G` : n >= 1e6 ? `${(n / 1e6
 const loading = `<p class="empty">// chargement…</p>`;
 const failed = e => `<p class="empty">// erreur : ${esc(e)}</p>`;
 
-async function loadExtra(t, url = { usage: "/api/usage", git: "/api/git" }[t]) {
+async function loadExtra(t, url = { usage: "/api/usage", git: "/api/git", board: "/api/board" }[t]) {
   extra[t] = null;
   if (tab === t) render();
   try {
@@ -1975,7 +1975,38 @@ function gitView() {
     + `<p class="note">Avance et retard comparés à la dernière copie locale de la branche distante : « Fetch + actualiser » la met à jour d'abord.</p>`;
 }
 
-const LOCAL_VIEWS = { chat: chatView, usage: usageView, search: searchView, git: gitView };
+// --- « Mes projets » : every folder of projects.json, newest activity first ---
+let boardDomain = "";
+const daysAgo = iso => Math.floor((Date.now() - new Date(iso)) / 864e5);
+
+function boardCard(p) {
+  const g = p.git;
+  if (!p.exists) return `<div class="card"><h3>${esc(p.name)} ${chip("introuvable", "warn")}</h3>
+    <div class="row">${chip(p.domain)}</div><div class="path">${esc(p.path)}</div></div>`;
+  const dormant = !p.modified || daysAgo(p.modified) > 30;
+  return `<div class="card">
+    <h3>${esc(p.name)} ${dormant ? chip("dormant", "warn") : ""}</h3>
+    <div class="row">${chip(p.domain)}${chip(p.modified ? `modifié ${ago(p.modified)}` : "vide")}
+      ${g ? chip(`git · ${g.branch}`, "accent") + chip(`${g.dirty} modif.`, g.dirty ? "warn" : "ok") : chip("pas de git")}</div>
+    <div class="path">${esc(p.path)}</div>
+    ${g && g.commitDate ? `<p class="path">Dernier commit ${ago(g.commitDate)} (${esc(g.commitDate.slice(0, 10))}) : ${esc(g.commitMsg)}</p>` : ""}
+  </div>`;
+}
+
+function boardView() {
+  const b = extra.board;
+  const tools = `<div class="toolbar"><button class="act" data-reload="board">Actualiser</button></div>`;
+  if (!b) return `<h2>Mes projets</h2>${tools}${loading}`;
+  if (b.error) return `<h2>Mes projets</h2>${tools}${failed(b.error)}`;
+  const domains = [...new Set(b.map(p => p.domain))];
+  const filters = `<div class="toolbar">${["", ...domains].map(d =>
+    `<button class="act ${d === boardDomain ? "on" : ""}" data-domain="${esc(d)}">${esc(d || "Tous")}</button>`).join("")}</div>`;
+  const list = b.filter(p => (!boardDomain || p.domain === boardDomain) && match(p.name, p.domain, p.path));
+  return section("Mes projets", list.map(boardCard)).replace("</h2>", `</h2>${tools}${filters}`)
+    + `<p class="note">Liste dans projects.json. Activité = fichier le plus récent (hors node_modules et .git) ; « dormant » au-delà de 30 jours.</p>`;
+}
+
+const LOCAL_VIEWS = { board: boardView, chat: chatView, usage: usageView, search: searchView, git: gitView };
 
 function render() {
   renderTabs();
@@ -1983,7 +2014,7 @@ function render() {
   if (tab === "roadmap") { app.innerHTML = roadmapView(); return; }
   if (!data) return;
   if (LOCAL_VIEWS[tab]) {
-    if ((tab === "usage" || tab === "git") && !(tab in extra)) return loadExtra(tab);
+    if (["usage", "git", "board"].includes(tab) && !(tab in extra)) return loadExtra(tab);
     app.innerHTML = LOCAL_VIEWS[tab]();
     if (tab === "chat") refreshChat();
     return;
@@ -2087,6 +2118,8 @@ document.addEventListener("click", e => {
   const sd = e.target.closest("[data-share-do]");
   if (sd) shareAction(sd.dataset.shareDo);
   if (e.target.id === "share") shareAction("close");  // click outside the panel
+  const dm = e.target.closest("[data-domain]");
+  if (dm) { boardDomain = dm.dataset.domain; render(); }
   const r = e.target.closest("[data-reload]");
   if (r) loadExtra(r.dataset.reload.split("-")[0], r.dataset.reload === "git-fetch" ? "/api/git?fetch=1" : undefined);
 });
