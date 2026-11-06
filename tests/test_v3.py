@@ -7,7 +7,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from jarvis import actions, inventory
+from jarvis import actions, board, inventory
 from jarvis.actions import chat_events
 from jarvis.history import NO_FOLDER, parse_usage, search_lines, session_state
 
@@ -118,6 +118,35 @@ def test_session_state():
     assert session_state([], 1) == "idle"
 
 
+def test_board():
+    import os, subprocess
+    with tempfile.TemporaryDirectory() as tmp:
+        home = Path(tmp)
+        repo, plain = home / "repo", home / "plain"
+        (repo / "node_modules").mkdir(parents=True)
+        plain.mkdir()
+        for f, t in ((repo / "a.txt", 1_000_000), (repo / "node_modules" / "x.js", 2_000_000), (plain / "b.txt", 500)):
+            f.write_text("x", encoding="utf-8")
+            os.utime(f, (t, t))
+        assert board.latest_mtime(repo) == 1_000_000  # node_modules is ignored
+        git = lambda *a: subprocess.run(["git", "-C", str(repo), "-c", "user.name=t", "-c", "user.email=t@t", *a],
+                                        check=True, capture_output=True)
+        git("init", "-q", "-b", "main")
+        git("add", "a.txt")
+        git("commit", "-q", "-m", "premier commit")
+        (repo / "new.txt").write_text("x", encoding="utf-8")
+        g = board.git_info(repo)
+        assert (g["branch"], g["commitMsg"], g["dirty"]) == ("main", "premier commit", 2), g  # new.txt + node_modules/
+        assert g["commitDate"][:4].isdigit()
+        assert board.git_info(plain) is None
+        cfg = home / "projects.json"
+        cfg.write_text(json.dumps({"_aide": "x", "D": [{"name": "P", "path": "plain"}, {"name": "R", "path": "repo"},
+                                                       {"name": "M", "path": "absent"}]}), encoding="utf-8")
+        out = board.board(cfg, home)
+        assert [r["name"] for r in out] == ["R", "P", "M"], out  # newest first, missing last
+        assert out[2]["exists"] is False and "git" not in out[2]
+
+
 if __name__ == "__main__":
     test_usage()
     test_search()
@@ -125,4 +154,5 @@ if __name__ == "__main__":
     test_rename_link()
     test_moved_session()
     test_session_state()
+    test_board()
     print("ok")

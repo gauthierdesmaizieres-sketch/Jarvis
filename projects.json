@@ -1,0 +1,39 @@
+{
+  "_aide": "Chemins relatifs au dossier utilisateur (C:\\Users\\gauth). Domaine -> liste de { name, path }.",
+  "🧪 Chimie & Labo": [
+    { "name": "labphoto", "path": "Documents/GitHub/labphoto" },
+    { "name": "Purification", "path": "Documents/Claude/Chimie/Purification" },
+    { "name": "Second cerveau (Paillasse Obsidian)", "path": "Documents/Claude/Chimie/Second cerveau (Paillasse Obsidian)" },
+    { "name": "Workflow synthese", "path": "Documents/Claude/Chimie/Workflow synthese" },
+    { "name": "Labo voix (Kobalt)", "path": "Documents/Claude/Chimie/Labo voix (Kobalt)" },
+    { "name": "Digitalisation labo", "path": "Documents/Claude/Chimie/Digitalisation labo" },
+    { "name": "Aliquot", "path": ".local/bin" }
+  ],
+  "📱 Apps perso": [
+    { "name": "Sillage", "path": "Documents/Sillage" },
+    { "name": "Safran", "path": "Documents/Safran" },
+    { "name": "Sylva", "path": "Documents/Sylva" },
+    { "name": "Strophe", "path": "Documents/Strophe" },
+    { "name": "Souffle", "path": "Documents/Soufle/souffle" },
+    { "name": "Synapse", "path": "Documents/GitHub/Synapse" },
+    { "name": "stamina", "path": "Documents/GitHub/stamina" },
+    { "name": "soldes", "path": "Documents/GitHub/soldes" },
+    { "name": "Tamagochi", "path": "Documents/Claude/Tamagochi" }
+  ],
+  "🤖 Jarvis & outils": [
+    { "name": "Jarvis", "path": "Documents/GitHub/Jarvis" },
+    { "name": "Changelog Github", "path": "Documents/Changelog Github" },
+    { "name": "Productivité et Organisation", "path": "Documents/Claude/Productivite et Organisation" }
+  ],
+  "🏠 Vie & finances": [
+    { "name": "Vie", "path": "Documents/Vie" }
+  ],
+  "🎨 Créa & bricolage": [
+    { "name": "S-icones", "path": "Documents/S-icones" },
+    { "name": "Useless mais fun", "path": "Documents/Claude/Useless mais fun" },
+    { "name": "Drone Projet", "path": "Documents/Drone Projet" },
+    { "name": "Smart TV", "path": "Documents/Smart TV" },
+    { "name": "Buchs DT", "path": "Documents/Buchs DT" },
+    { "name": "Voyage Pérou 2026", "path": "Documents/Voyage Perou 2026" }
+  ]
+}

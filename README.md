@@ -50,7 +50,9 @@ Quatre onglets en plus, chargés seulement quand on les ouvre :
 - **Recherche** : cherche un texte dans tes prompts et les réponses de Claude de toutes les sessions (50 résultats au plus), avec projet, date, extrait et bouton **Reprendre**.
 - **Git** : pour chaque projet git, la branche, les fichiers modifiés, les commits à pousser et en retard sur la branche distante, et les branches locales. **Fetch + actualiser** fait d'abord un `git fetch`, **Tout pull** lance `git pull --ff-only` partout (avec confirmation) et affiche le résultat projet par projet.
 
-Ces routes (`POST /api/chat`, `GET /api/usage`, `/api/search`, `/api/git`) ont la même protection que les actions (Host, Origin, jeton). Ces onglets n'existent ni dans l'Artifact ni sur la page publique.
+- **Mes projets** : tous les dossiers listés dans [projects.json](projects.json) (chemins relatifs au dossier utilisateur, groupés par domaine), triés par activité récente : date du fichier le plus récent (hors `node_modules` et `.git`), et pour un dépôt git la branche, le dernier commit et le nombre de fichiers non commités. Filtre par domaine, badge « dormant » après 30 jours sans activité, « introuvable » si le dossier n'existe pas. Lecture seule. `python -m jarvis.board` affiche les données brutes.
+
+Ces routes (`POST /api/chat`, `GET /api/usage`, `/api/search`, `/api/git`, `/api/board`) ont la même protection que les actions (Host, Origin, jeton). Ces onglets n'existent ni dans l'Artifact ni sur la page publique.
 
 Dans le chat, **Micro** dicte ton message et **Voix · on** lit les réponses à voix haute (reconnaissance et synthèse vocales du navigateur ; dans Chrome, la dictée passe par les serveurs de Google).
 
@@ -80,7 +82,7 @@ En bas à gauche du dashboard, Wisp suit tes sessions Claude Code grâce à `GET
 
 Cinq clics en 2 s le font passer en mode flamer. `wisp("gg", "texte")` dans la console change son humeur. Le prototype autonome est dans [wisp.html](wisp.html). Sur les copies en ligne, il ne réagit qu'aux clics.
 
-`python tests/test_v3.py` vérifie le parseur de tokens, la recherche et la lecture du flux du chat.
+`python tests/test_v3.py` vérifie le parseur de tokens, la recherche, la lecture du flux du chat et la collecte de « Mes projets ».
 
 ### Version en ligne (téléphone, PC éteint)
 
