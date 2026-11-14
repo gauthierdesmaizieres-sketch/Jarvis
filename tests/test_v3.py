@@ -7,7 +7,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from jarvis import actions, board, inventory
+from jarvis import actions, board, inventory, system
 from jarvis.actions import chat_events
 from jarvis.history import NO_FOLDER, parse_usage, search_lines, session_state
 
@@ -147,11 +147,20 @@ def test_board():
         assert out[2]["exists"] is False and "git" not in out[2]
 
 
+def test_cpu_percent():
+    system._last = None
+    assert system.cpu_percent((100, 1000)) is None  # no earlier sample yet
+    assert system.cpu_percent((175, 1100)) == 25  # 75 idle out of 100
+    assert system.cpu_percent((175, 1100)) is None  # no time passed
+    assert 0 <= system.system()["disk"] <= 100
+
+
 if __name__ == "__main__":
     test_usage()
     test_search()
     test_chat_events()
     test_rename_link()
+    test_cpu_percent()
     test_moved_session()
     test_session_state()
     test_board()

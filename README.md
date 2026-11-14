@@ -56,6 +56,11 @@ Ces routes (`POST /api/chat`, `GET /api/usage`, `/api/search`, `/api/git`, `/api
 
 Dans le chat, **Micro** dicte ton message et **Voix · on** lit les réponses à voix haute (reconnaissance et synthèse vocales du navigateur ; dans Chrome, la dictée passe par les serveurs de Google).
 
+### Clavier et HUD (v4)
+
+- **Ctrl+K** (⌘K sur Mac) ouvre la barre de commande : tape quelques lettres puis Entrée pour aller sur un onglet, ouvrir un lien ou lancer une action sur un projet (Claude ▶, Éditeur, Dossier). Flèches pour choisir, Échap pour fermer. Sur la page publique, seuls les onglets et les liens y sont.
+- **État du PC** : sous le réacteur de l'Accueil, le processeur, la mémoire et le disque système, en pourcentage, mis à jour toutes les 5 secondes (`GET /api/system`, même protection que les autres routes privées ; rien n'est publié).
+
 ### Sur le téléphone
 
 - **Jarvis en direct (PC allumé)** : installe [Tailscale](https://tailscale.com/download) sur le PC et sur le téléphone, connecte-les au même compte, puis lance une fois sur le PC :
@@ -82,7 +87,7 @@ En bas à gauche du dashboard, Wisp suit tes sessions Claude Code grâce à `GET
 
 Cinq clics en 2 s le font passer en mode flamer. `wisp("gg", "texte")` dans la console change son humeur. Le prototype autonome est dans [wisp.html](wisp.html). Sur les copies en ligne, il ne réagit qu'aux clics.
 
-`python tests/test_v3.py` vérifie le parseur de tokens, la recherche, la lecture du flux du chat et la collecte de « Mes projets ».
+`python tests/test_v3.py` vérifie le parseur de tokens, la recherche, la lecture du flux du chat, la collecte de « Mes projets » et le calcul du processeur.
 
 ### Version en ligne (téléphone, PC éteint)
 
@@ -127,4 +132,4 @@ Limite connue : les connecteurs gérés par l'app Claude (Docs, Chrome, navigate
 
 ## Pistes pour la suite
 
-- v4 : bouton micro (dictée et réponse parlée avec la voix du navigateur), barre de commande Ctrl+K, état du PC (processeur, mémoire, disque) dans le HUD
+- v5 : à choisir (idées : Passage de relais, Météo du code)

@@ -155,6 +155,20 @@
   .share-box { width: min(340px, 100%); padding: 20px; text-align: center; background: var(--bg-2);
                border: 1px solid var(--cyan); box-shadow: var(--glow); }
   .share-box h3 { margin: 0 0 12px; font: 600 15px var(--display); }
+  /* --- v4: PC state under the reactor, command bar (Ctrl+K) --- */
+  .pc { display: flex; justify-content: center; flex-wrap: wrap; gap: 14px 28px; margin: -18px 0 30px; font: 12px var(--mono); color: var(--muted); }
+  .pc span { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; width: 140px; }
+  .pc b { color: var(--cyan); font-weight: 500; }
+  .pc i { grid-column: 1 / -1; height: 3px; border-radius: 2px; background: linear-gradient(90deg, var(--cyan) var(--v), var(--line) 0); }
+  #palette { position: fixed; inset: 0; z-index: 7; display: grid; justify-items: center; align-items: start;
+             padding: 12vh 16px 16px; background: rgba(6, 11, 24, .75); }
+  #palette[hidden] { display: none; }
+  .palette-box { width: min(560px, 100%); padding: 10px; border-radius: 14px; background: var(--bg-2); border: 1px solid var(--line); }
+  .palette-box .toolbar { margin-bottom: 6px; }
+  .pal-item { display: flex; justify-content: space-between; gap: 12px; width: 100%; padding: 8px 10px; border: 0; border-radius: 9px;
+              background: none; color: var(--text); font: 14px var(--body); text-align: left; text-decoration: none; cursor: pointer; }
+  .pal-item small { color: var(--muted); font: 12px var(--mono); }
+  .pal-item.sel, .pal-item:hover { background: rgba(94, 224, 203, .14); }
   .share-box .qr svg { display: block; width: 100%; height: auto; background: #fff; }  /* dark on white: scans everywhere */
   .share-box .path { margin: 10px 0 4px; }
   a:focus-visible, button:focus-visible, .stat:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
@@ -290,6 +304,7 @@
 </header>
 <pre id="out" hidden></pre>
 <div id="share" hidden></div>
+<div id="palette" hidden></div>
 <main id="app"><p class="empty">// initialisation des systèmes…</p></main>
 <div class="wisp" id="wisp" data-mood="idle" role="img" aria-label="Wisp, la mascotte">
   <div class="bubble" id="wisp-bubble" aria-live="polite"></div>
@@ -341,13 +356,13 @@ const ROADMAP = [
     ["Recherche dans les sessions", "Prompts et réponses de toutes les sessions, avec « Reprendre »"],
     ["Bilan git", "Tous les projets : branche, modifs, commits en avance ou en retard, « Tout pull »"],
   ]},
-  { v: "v4", title: "Voix & HUD", status: "En cours", items: [
+  { v: "v4", title: "Voix & HUD", status: "En ligne", live: true, items: [
     ["Bouton micro · fait", "Dicter au chat et entendre la réponse, avec la voix du navigateur"],
     ["Jarvis sur le téléphone · fait", "En direct via Tailscale, app installable, « Partager vers Jarvis »"],
     ["Style Aurore · fait", "Interface en verre sur fond d'aurore"],
     ["Tuiles renommables · fait", "Nom au choix dans Accès rapide, gardé dans names.json"],
-    ["Barre de commande Ctrl+K", "Ouvrir un projet, lancer une action ou chercher au clavier"],
-    ["État du PC dans le HUD", "Processeur, mémoire et disque autour du réacteur"],
+    ["Barre de commande Ctrl+K · fait", "Ouvrir un projet, lancer une action ou aller sur un onglet au clavier"],
+    ["État du PC dans le HUD · fait", "Processeur, mémoire et disque sous le réacteur"],
   ]},
 ];
 
@@ -805,6 +820,51 @@ function boardView() {
     + `<p class="note">Liste dans projects.json. Activité = fichier le plus récent (hors node_modules et .git) ; « dormant » au-delà de 30 jours.</p>`;
 }
 
+// --- v4: PC state on the home HUD (local page only), refreshed every 5 s while visible ---
+let pcHtml = "";
+async function pcState() {
+  if (!document.getElementById("pc") || document.hidden) return;
+  try {
+    const s = await (await api("/api/system")).json();
+    const gauge = (label, v, title = "") => v == null ? "" : `<span title="${title}">${label}<b>${v} %</b><i style="--v:${v}%"></i></span>`;
+    pcHtml = gauge("Processeur", s.cpu) + gauge("Mémoire", s.mem) + gauge("Disque", s.disk, `${s.diskFreeGb} Go libres`);
+    document.getElementById("pc").innerHTML = pcHtml;
+  } catch {}
+}
+if (TOKEN) setInterval(pcState, 5000);
+
+// --- v4: command bar (Ctrl+K). Entries reuse the page's own data-tab / data-act / link handling. ---
+let palSel = 0;
+function paletteItems() {
+  const items = TABS.map(([id, label]) => ({ text: label, hint: "onglet", attrs: `data-tab="${id}"` }));
+  for (const p of data?.projects || []) {
+    if (TOKEN && p.exists) for (const [label, a] of [["Claude ▶", "claude_new"], ["Éditeur", "open_editor"], ["Dossier", "open_explorer"]])
+      items.push({ text: `${p.name} · ${label}`, hint: "action", attrs: `data-act="${a}" data-path="${esc(p.path)}"` });
+    for (const l of visibleLinks(p)) items.push({ text: `${l.name || p.name} · ${l.label}`, hint: "lien", href: l.url });
+  }
+  return items.filter((x, i, all) => all.findIndex(o => o.text === x.text && o.href === x.href && o.attrs === x.attrs) === i);
+}
+function renderPalette() {
+  const words = document.getElementById("pal-q").value.toLowerCase().split(/\s+/).filter(Boolean);
+  const items = paletteItems().filter(x => words.every(w => x.text.toLowerCase().includes(w))).slice(0, 12);
+  palSel = Math.max(0, Math.min(palSel, items.length - 1));
+  document.getElementById("pal-list").innerHTML = items.map((x, i) => {
+    const cls = `pal-item${i === palSel ? " sel" : ""}`, body = `<span>${esc(x.text)}</span><small>${x.hint}</small>`;
+    return x.href ? `<a class="${cls}" href="${esc(x.href)}" target="_blank" rel="noopener">${body}</a>`
+                  : `<button class="${cls}" ${x.attrs}>${body}</button>`;
+  }).join("") || `<p class="empty">// rien ne correspond</p>`;
+}
+function openPalette() {
+  const box = document.getElementById("palette");
+  box.innerHTML = `<div class="palette-box" role="dialog" aria-modal="true" aria-label="Commandes">
+    <div class="toolbar"><input id="pal-q" placeholder="Projet, onglet ou action…" autocomplete="off" aria-label="Commande"></div>
+    <div id="pal-list"></div></div>`;
+  box.hidden = false;
+  palSel = 0;
+  renderPalette();
+  document.getElementById("pal-q").focus();
+}
+
 const LOCAL_VIEWS = { board: boardView, chat: chatView, usage: usageView, search: searchView, git: gitView };
 
 function render() {
@@ -838,7 +898,7 @@ function render() {
         <div class="ring r1"></div><div class="ring r2"></div><div class="ring r3"></div>
         <div class="ring r4"></div><div class="ring r5"></div>
         <div class="label">J.A.R.V.I.S</div>
-        <div class="sub">v3 · ONLINE</div>
+        <div class="sub">v4 · ONLINE</div>
       </div>
       <div class="hud-col right">
         ${stat("mcp", allMcp().length, "serveurs MCP")}
@@ -846,10 +906,12 @@ function render() {
         ${stat("roadmap", ROADMAP.filter(ph => !ph.live).length, "évolutions prévues")}
       </div>
     </section>
+    ${TOKEN ? `<div class="pc" id="pc">${pcHtml}</div>` : ""}
     <div class="status-line"><span class="dot"></span>${SNAPSHOT
       ? `INSTANTANÉ EN LIGNE · MIS À JOUR ${esc(ago(data.generatedAt).toUpperCase())}`
       : "TOUS LES SYSTÈMES OPÉRATIONNELS"} · ${esc(data.account.email || "")}</div>`;
     app.innerHTML = html;  // the home page is just the HUD
+    if (TOKEN && !pcHtml) pcState();
     return;
   } else if (tab === "quick") {
     html += quickAccess();
@@ -919,6 +981,8 @@ document.addEventListener("click", e => {
   if (e.target.id === "share") shareAction("close");  // click outside the panel
   const dm = e.target.closest("[data-domain]");
   if (dm) { boardDomain = dm.dataset.domain; render(); }
+  // After the first listener ran the entry's own action: close the command bar.
+  if (e.target.closest(".pal-item") || e.target.id === "palette") document.getElementById("palette").hidden = true;
   const r = e.target.closest("[data-reload]");
   if (r) loadExtra(r.dataset.reload.split("-")[0], r.dataset.reload === "git-fetch" ? "/api/git?fetch=1" : undefined);
 });
@@ -939,8 +1003,19 @@ document.addEventListener("submit", e => {
     if (q.length >= 2) runSearch(q);
   }
 });
-document.addEventListener("input", e => { if (e.target.id === "chat-input") chat.draft = e.target.value; });
+document.addEventListener("input", e => {
+  if (e.target.id === "chat-input") chat.draft = e.target.value;
+  if (e.target.id === "pal-q") { palSel = 0; renderPalette(); }
+});
 document.addEventListener("keydown", e => {
+  const pal = document.getElementById("palette");
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") { e.preventDefault(); return openPalette(); }
+  if (!pal.hidden) {
+    if (e.key === "Escape") pal.hidden = true;
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") { e.preventDefault(); palSel += e.key === "ArrowDown" ? 1 : -1; renderPalette(); }
+    if (e.key === "Enter") { e.preventDefault(); pal.querySelector(".pal-item.sel")?.click(); }
+    return;
+  }
   if (e.key === "Escape" && !document.getElementById("share").hidden) shareAction("close");
   if (e.target.id === "chat-input" && e.key === "Enter" && (e.ctrlKey || e.metaKey)) e.target.form.requestSubmit();
 });

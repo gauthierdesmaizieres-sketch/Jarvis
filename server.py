@@ -23,7 +23,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
-from jarvis import actions, board, history
+from jarvis import actions, board, history, system
 from jarvis.inventory import collect
 from snapshot import APP_HEAD
 
@@ -74,6 +74,7 @@ class Handler(BaseHTTPRequestHandler):
             "/api/search": lambda: history.search(qs.get("q", [""])[0], min(int(qs.get("limit", ["50"])[0]), 200)),
             "/api/git": lambda: actions.git_overview(fetch=qs.get("fetch") == ["1"]),
             "/api/board": lambda: board.board(),
+            "/api/system": lambda: system.system(),
         }
         if path in private:
             if not self._local():
