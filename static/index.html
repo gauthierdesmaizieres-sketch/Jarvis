@@ -604,8 +604,8 @@ const extra = {};  // tab -> what the server sent, null while loading, or {error
 const chat = { path: "", session: "", log: [], busy: false, ctrl: null, draft: "", mic: null, micError: "" };
 // Browser speech: dictation (Chrome, Edge, Safari; needs https or localhost) and spoken replies.
 const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-let speak = false;
-try { speak = localStorage.getItem("jarvis.speak") === "1"; } catch {}
+let speak = false, listen = false, ear = null;
+try { speak = localStorage.getItem("jarvis.speak") === "1"; listen = localStorage.getItem("jarvis.listen") === "1"; } catch {}
 const api = (url, opts = {}) => fetch(url, { ...opts, headers: { "Content-Type": "application/json", "X-Jarvis-Token": TOKEN } });
 const fmt = n => n >= 1e9 ? `${(n / 1e9).toFixed(1)} G` : n >= 1e6 ? `${(n / 1e6).toFixed(1)} M` : n >= 1e3 ? `${Math.round(n / 1e3)} k` : String(n);
 const loading = `<p class="empty">// chargement…</p>`;
@@ -649,7 +649,10 @@ function chatView() {
         ? `<button class="act off" type="button" data-chat="stop">Stop</button>`
         : `<button class="act on" type="submit">Envoyer</button>`}
         ${Recognition && !chat.busy ? `<button class="act ${chat.mic ? "off" : ""}" type="button" data-chat="mic">${chat.mic ? "■ J'écoute…" : "Micro"}</button>` : ""}
+        ${Recognition ? `<button class="act ${listen ? "on" : ""}" type="button" data-chat="listen" title="Écouter en permanence : dis « Jarvis, … »">Écoute · ${listen ? "on" : "off"}</button>` : ""}
         ${window.speechSynthesis ? `<button class="act ${speak ? "on" : ""}" type="button" data-chat="voice" title="Lire les réponses à voix haute">Voix · ${speak ? "on" : "off"}</button>` : ""}
+        ${speak && frVoices().length > 1 ? `<select id="chat-voice" aria-label="Voix de Jarvis">${frVoices().map(v =>
+          `<option ${v === jarvisVoice() ? "selected" : ""}>${esc(v.name)}</option>`).join("")}</select>` : ""}
         ${chat.micError ? `<span class="note">micro : ${esc(chat.micError)}</span>` : ""}</div>
     </form>
     <p class="note">Claude répond avec « claude -p » dans le dossier du projet. Ce qui demanderait ta confirmation (modifier un fichier, lancer une commande non autorisée) est refusé automatiquement : pour ça, ouvre la session dans un terminal.</p>`;
@@ -718,17 +721,58 @@ function voiceCommand(message) {
 // v5: Jarvis's voice, a mature woman's. Best: Edge's natural French voices (Denise, Vivienne...),
 // then any French female voice; a little slower and lower than the default.
 const FEMALE = /denise|vivienne|eloise|brigitte|celeste|coralie|jacqueline|yvette|josephine|hortense|julie|amelie|female|femme|google fran/i;
+const NATURAL = /natural|online/i;
+let voiceName = "";
+try { voiceName = localStorage.getItem("jarvis.voice") || ""; } catch {}
+const frVoices = () => (window.speechSynthesis?.getVoices() || []).filter(v => v.lang.startsWith("fr"));
 function jarvisVoice() {
-  const fr = speechSynthesis.getVoices().filter(v => v.lang.startsWith("fr"));
-  return fr.find(v => /natural|online/i.test(v.name) && FEMALE.test(v.name)) || fr.find(v => FEMALE.test(v.name)) || fr[0] || null;
+  const fr = frVoices();
+  return fr.find(v => v.name === voiceName) || fr.find(v => NATURAL.test(v.name) && FEMALE.test(v.name))
+    || fr.find(v => FEMALE.test(v.name)) || fr[0] || null;
 }
+// Edge loads its natural voices a moment after the page: refresh the voice list when they arrive.
+if (window.speechSynthesis) speechSynthesis.onvoiceschanged = () => tab === "chat" && !chat.busy && render();
 function talk(text) {
-  const u = Object.assign(new SpeechSynthesisUtterance(text), { lang: "fr-FR", voice: jarvisVoice(), rate: .95, pitch: .85 });
-  speechSynthesis.speak(u);
+  speechSynthesis.cancel();
+  const voice = jarvisVoice(), natural = NATURAL.test(voice?.name);
+  const clean = text.replace(/```[\s\S]*?```/g, " ").replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
+    .replace(/https?:\/\/\S+/g, "").replace(/[*_#`>|~]/g, "").replace(/\s*\n+\s*/g, ". ");
+  // Online voices stop after ~15 s of one utterance: speak chunks of whole sentences, queued.
+  const chunks = [];
+  for (const s of clean.match(/[^.!?;]+[.!?;]*/g) || []) {
+    if (chunks.length && chunks.at(-1).length + s.length < 220) chunks[chunks.length - 1] += s;
+    else chunks.push(s);
+  }
+  // Natural voices sound best untouched; the old robotic ones a little slower and lower.
+  for (const c of chunks.filter(c => /\w/.test(c)))
+    speechSynthesis.speak(Object.assign(new SpeechSynthesisUtterance(c.trim()),
+      { lang: "fr-FR", voice, rate: natural ? 1 : .95, pitch: natural ? 1 : .9 }));
+}
+
+// v5: always listening. Only a sentence containing "Jarvis" does something ("ok Jarvis, baisse le son");
+// everything else heard is dropped. The browser stops after each silence, so it starts again.
+function startEar() {
+  if (!TOKEN || !Recognition || !listen || ear || chat.mic) return;
+  ear = Object.assign(new Recognition(), { lang: "fr-FR", continuous: true });
+  ear.onresult = e => {
+    const r = e.results[e.results.length - 1];
+    const t = r.isFinal ? r[0].transcript.trim() : "";
+    const i = t.search(/\bjarvis\b/i);
+    if (i >= 0 && !speechSynthesis.speaking) voiceCommand(t.slice(i));  // not Jarvis hearing its own voice
+  };
+  ear.onerror = e => {
+    if (e.error !== "not-allowed") return;
+    listen = false;
+    chat.micError = "accès refusé par le navigateur";
+    render();
+  };
+  ear.onend = () => { ear = null; setTimeout(startEar, 300); };
+  ear.start();
 }
 
 function toggleMic() {
   if (chat.mic) return chat.mic.stop();
+  ear?.abort();  // one recognition at a time: the always-on one resumes when dictation ends
   const rec = chat.mic = new Recognition();
   const before = chat.draft ? chat.draft + " " : "";
   rec.lang = "fr-FR";
@@ -741,6 +785,7 @@ function toggleMic() {
   rec.onerror = e => { chat.micError = e.error === "not-allowed" ? "accès refusé par le navigateur" : e.error; };
   rec.onend = () => {
     chat.mic = null;
+    startEar();
     if (/^jarvis\b/i.test(chat.draft.trim()) && !chat.busy) { const m = chat.draft.trim(); chat.draft = ""; voiceCommand(m); }
     else if (tab === "chat") render();
   };
@@ -882,6 +927,7 @@ if (TOKEN) setInterval(pcState, 5000);
 
 // --- v4: command bar (Ctrl+K). Entries reuse the page's own data-tab / data-act / link handling. ---
 let palSel = 0, apps = [];
+startEar();  // back on at each opening if it was on
 if (TOKEN) api("/api/apps").then(r => r.ok && r.json()).then(a => apps = a || []).catch(() => {});
 const norm = t => t.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 // v5: the PC itself. kw = extra words for typing and voice ("Jarvis, baisse le son").
@@ -1031,6 +1077,13 @@ document.addEventListener("click", e => {
   if (c?.dataset.chat === "new") { chat.ctrl?.abort(); Object.assign(chat, { session: "", log: [] }); render(); }
   if (c?.dataset.chat === "stop") chat.ctrl?.abort();
   if (c?.dataset.chat === "mic") toggleMic();
+  if (c?.dataset.chat === "listen") {
+    listen = !listen;
+    try { localStorage.setItem("jarvis.listen", listen ? "1" : "0"); } catch {}
+    chat.micError = "";
+    listen ? startEar() : ear?.abort();
+    render();
+  }
   if (c?.dataset.chat === "voice") {
     speak = !speak;
     try { localStorage.setItem("jarvis.speak", speak ? "1" : "0"); } catch {}
@@ -1050,6 +1103,11 @@ document.addEventListener("click", e => {
   if (r) loadExtra(r.dataset.reload.split("-")[0], r.dataset.reload === "git-fetch" ? "/api/git?fetch=1" : undefined);
 });
 document.addEventListener("change", e => {
+  if (e.target.id === "chat-voice") {
+    voiceName = e.target.value;
+    try { localStorage.setItem("jarvis.voice", voiceName); } catch {}
+    return talk("Bonjour. Je suis Jarvis, à votre service.");
+  }
   if (e.target.id !== "chat-project" || e.target.value === chat.path) return;
   chat.ctrl?.abort();  // a conversation belongs to one project folder
   Object.assign(chat, { path: e.target.value, session: "", log: [] });
