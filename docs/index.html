@@ -339,7 +339,7 @@
 </div>
 
 <script>window.JARVIS_DATA = {
-"generatedAt": "2026-11-14T11:22:01.113968+00:00",
+"generatedAt": "2026-11-14T11:50:00.971762+00:00",
 "account": {},
 "globalClaudeMd": null,
 "skills": [
@@ -1900,18 +1900,16 @@ async function sendChat(message) {
   }
   chat.busy = false;
   if (tab === "chat") { render(); document.getElementById("chat-input")?.focus(); }
-  if (speak && reply.text) {
-    const u = new SpeechSynthesisUtterance(reply.text.replace(/^⚙ .*$/gm, ""));
-    u.lang = "fr-FR";
-    speechSynthesis.speak(u);
-  }
+  if (speak && reply.text) talk(reply.text.replace(/^⚙ .*$/gm, ""));
 }
 
+const FILLER = ["le", "la", "les", "un", "une", "de", "du", "des", "en", "et", "mon", "ma", "mes", "moi", "stp", "dans",
+  "sur", "pour", "au", "aux", "avec", "ce", "cet", "cette", "va", "vas", "me", "il", "te", "plait", "plais", "est", "qui", "que"];
 // "Jarvis, ouvre Spotify": the entry sharing the most words with the order (filler words ignored).
 function voiceCommand(message) {
   const m = norm(message).match(/^jarvis\b[\s,.!:]*(.+)/);
   if (!m) return false;
-  const words = m[1].replace(/[^a-z0-9' ]/g, " ").split(/\s+/).filter(w => w.length > 1 && !["le", "la", "les", "un", "une", "de", "du", "des", "en", "et", "mon", "ma", "mes", "moi", "stp"].includes(w));
+  const words = m[1].replace(/[^a-z0-9' ]/g, " ").split(/\s+/).filter(w => w.length > 1 && !FILLER.includes(w));
   let best = null, score = 0;
   for (const x of paletteItems()) {
     // Words of the name count double; extra keywords ("ouvre", "baisse") only break ties, never match alone.
@@ -1922,13 +1920,25 @@ function voiceCommand(message) {
   const reply = best ? `→ ${best.text}` : "Je n'ai pas compris cet ordre. Essaie Ctrl+K pour voir les commandes.";
   chat.log.push({ role: "user", text: message }, { role: "claude", text: reply });
   render();
-  if (speak) { const u = new SpeechSynthesisUtterance(reply.replace("→ ", "")); u.lang = "fr-FR"; speechSynthesis.speak(u); }
+  if (speak) talk(reply.replace("→ ", ""));
   if (best?.href) window.open(best.href, "_blank", "noopener");  // shortcut: a popup blocker may stop it after dictation, then click the link
   else if (best) {
     const b = Object.assign(document.createElement("div"), { innerHTML: `<button ${best.attrs}></button>` }).firstChild;
     b.dataset.tab ? setTab(b.dataset.tab) : act(b);
   }
   return true;
+}
+
+// v5: Jarvis's voice, a mature woman's. Best: Edge's natural French voices (Denise, Vivienne...),
+// then any French female voice; a little slower and lower than the default.
+const FEMALE = /denise|vivienne|eloise|brigitte|celeste|coralie|jacqueline|yvette|josephine|hortense|julie|amelie|female|femme|google fran/i;
+function jarvisVoice() {
+  const fr = speechSynthesis.getVoices().filter(v => v.lang.startsWith("fr"));
+  return fr.find(v => /natural|online/i.test(v.name) && FEMALE.test(v.name)) || fr.find(v => FEMALE.test(v.name)) || fr[0] || null;
+}
+function talk(text) {
+  const u = Object.assign(new SpeechSynthesisUtterance(text), { lang: "fr-FR", voice: jarvisVoice(), rate: .95, pitch: .85 });
+  speechSynthesis.speak(u);
 }
 
 function toggleMic() {
@@ -2238,7 +2248,7 @@ document.addEventListener("click", e => {
   if (c?.dataset.chat === "voice") {
     speak = !speak;
     try { localStorage.setItem("jarvis.speak", speak ? "1" : "0"); } catch {}
-    if (!speak) speechSynthesis.cancel();
+    speak ? talk("Bonjour. Je suis Jarvis, à votre service.") : speechSynthesis.cancel();
     render();
   }
   const s = e.target.closest("[data-share]");
