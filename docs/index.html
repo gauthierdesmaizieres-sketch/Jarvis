@@ -339,7 +339,7 @@
 </div>
 
 <script>window.JARVIS_DATA = {
-"generatedAt": "2026-11-14T11:15:00.039324+00:00",
+"generatedAt": "2026-11-14T11:22:01.113968+00:00",
 "account": {},
 "globalClaudeMd": null,
 "skills": [
@@ -729,7 +729,7 @@
 {
 "name": "claude-plugins-official",
 "url": "https://github.com/anthropics/claude-plugins-official.git",
-"lastUpdated": "2026-11-14T11:07:11.046Z"
+"lastUpdated": "2026-11-14T11:20:02.783Z"
 },
 {
 "name": "ponytail",
@@ -739,7 +739,7 @@
 {
 "name": "anthropic-agent-skills",
 "url": "anthropics/skills",
-"lastUpdated": "2026-11-14T11:07:11.545Z"
+"lastUpdated": "2026-11-14T11:20:03.357Z"
 },
 {
 "name": "lemolab",
@@ -1578,6 +1578,13 @@ const ROADMAP = [
     ["Barre de commande Ctrl+K · fait", "Ouvrir un projet, lancer une action ou aller sur un onglet au clavier"],
     ["État du PC dans le HUD · fait", "Processeur, mémoire et disque sous le réacteur"],
   ]},
+  { v: "v5", title: "Pilote du PC", status: "En ligne", live: true, items: [
+    ["App sur le PC · fait", "Démarre avec Windows, fenêtre à part, Ctrl+Alt+J pour l'ouvrir"],
+    ["Notifications · fait", "Une session attend ta réponse ou vient de finir"],
+    ["Commandes du PC · fait", "Son, verrouiller, veille, éteindre, ouvrir une app, depuis Ctrl+K"],
+    ["Ordres à la voix · fait", "« Jarvis, ouvre Spotify » dans le chat"],
+    ["Contrôle total", "Souris et clavier : via le computer use de l'app Claude, pas dans Jarvis"],
+  ]},
 ];
 
 // Set by snapshot.py in the online copy, which works without the PC.
@@ -1672,11 +1679,13 @@ Jarvis va écrire dans ~/.claude/settings.json (copie de sauvegarde settings.jso
 Jarvis va écrire dans ~/.claude.json (copie de sauvegarde .claude.json.jarvis.bak).`,
   git_pull: d => "Lancer git pull (avance rapide uniquement) dans ce projet ?",
   git_pull_all: d => "Lancer git pull (avance rapide uniquement) dans TOUS les projets git ?",
+  pc_power: d => ({ sleep: "Mettre le PC en veille ?", shutdown: "Éteindre le PC dans 60 secondes ?" })[d.mode],
 };
 
 async function act(el) {
   const d = { ...el.dataset };
-  if (CONFIRM[d.act] && !confirm(CONFIRM[d.act](d))) return;
+  const ask = CONFIRM[d.act]?.(d);
+  if (ask && !confirm(ask)) return;
   if (d.act === "rename_link") {
     d.label = prompt("Nouveau nom (vide : nom d'origine)", d.current);
     if (d.label === null) return;
@@ -1898,6 +1907,30 @@ async function sendChat(message) {
   }
 }
 
+// "Jarvis, ouvre Spotify": the entry sharing the most words with the order (filler words ignored).
+function voiceCommand(message) {
+  const m = norm(message).match(/^jarvis\b[\s,.!:]*(.+)/);
+  if (!m) return false;
+  const words = m[1].replace(/[^a-z0-9' ]/g, " ").split(/\s+/).filter(w => w.length > 1 && !["le", "la", "les", "un", "une", "de", "du", "des", "en", "et", "mon", "ma", "mes", "moi", "stp"].includes(w));
+  let best = null, score = 0;
+  for (const x of paletteItems()) {
+    // Words of the name count double; extra keywords ("ouvre", "baisse") only break ties, never match alone.
+    const t = words.filter(w => norm(x.text).includes(w)).length;
+    const n = t && 2 * t + words.filter(w => norm(x.kw || "").includes(w)).length;
+    if (n > score) [best, score] = [x, n];
+  }
+  const reply = best ? `→ ${best.text}` : "Je n'ai pas compris cet ordre. Essaie Ctrl+K pour voir les commandes.";
+  chat.log.push({ role: "user", text: message }, { role: "claude", text: reply });
+  render();
+  if (speak) { const u = new SpeechSynthesisUtterance(reply.replace("→ ", "")); u.lang = "fr-FR"; speechSynthesis.speak(u); }
+  if (best?.href) window.open(best.href, "_blank", "noopener");  // shortcut: a popup blocker may stop it after dictation, then click the link
+  else if (best) {
+    const b = Object.assign(document.createElement("div"), { innerHTML: `<button ${best.attrs}></button>` }).firstChild;
+    b.dataset.tab ? setTab(b.dataset.tab) : act(b);
+  }
+  return true;
+}
+
 function toggleMic() {
   if (chat.mic) return chat.mic.stop();
   const rec = chat.mic = new Recognition();
@@ -1910,7 +1943,11 @@ function toggleMic() {
     if (input) input.value = chat.draft;
   };
   rec.onerror = e => { chat.micError = e.error === "not-allowed" ? "accès refusé par le navigateur" : e.error; };
-  rec.onend = () => { chat.mic = null; if (tab === "chat") render(); };
+  rec.onend = () => {
+    chat.mic = null;
+    if (/^jarvis\b/i.test(chat.draft.trim()) && !chat.busy) { const m = chat.draft.trim(); chat.draft = ""; voiceCommand(m); }
+    else if (tab === "chat") render();
+  };
   chat.micError = "";
   rec.start();
   render();
@@ -2048,9 +2085,25 @@ async function pcState() {
 if (TOKEN) setInterval(pcState, 5000);
 
 // --- v4: command bar (Ctrl+K). Entries reuse the page's own data-tab / data-act / link handling. ---
-let palSel = 0;
+let palSel = 0, apps = [];
+if (TOKEN) api("/api/apps").then(r => r.ok && r.json()).then(a => apps = a || []).catch(() => {});
+const norm = t => t.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+// v5: the PC itself. kw = extra words for typing and voice ("Jarvis, baisse le son").
+const PC_ITEMS = [
+  ["Son · plus fort", "pc_volume", "dir", "up", "monte augmente volume"],
+  ["Son · moins fort", "pc_volume", "dir", "down", "baisse diminue volume"],
+  ["Son · couper ou remettre", "pc_volume", "dir", "mute", "coupe muet volume"],
+  ["PC · Verrouiller", "pc_power", "mode", "lock", "verrouille bloque"],
+  ["PC · Mettre en veille", "pc_power", "mode", "sleep", "dors veille"],
+  ["PC · Éteindre (dans 60 s)", "pc_power", "mode", "shutdown", "eteins arrete arret"],
+  ["PC · Annuler l'arrêt", "pc_power", "mode", "cancel", "annule"],
+];
 function paletteItems() {
   const items = TABS.map(([id, label]) => ({ text: label, hint: "onglet", attrs: `data-tab="${id}"` }));
+  if (TOKEN) {
+    for (const [text, a, k, v, kw] of PC_ITEMS) items.push({ text, kw, hint: "PC", attrs: `data-act="${a}" data-${k}="${v}"` });
+    for (const name of apps) items.push({ text: `Ouvrir · ${name}`, kw: "ouvre lance", hint: "app", attrs: `data-act="pc_open" data-name="${esc(name)}"` });
+  }
   for (const p of data?.projects || []) {
     if (TOKEN && p.exists) for (const [label, a] of [["Claude ▶", "claude_new"], ["Éditeur", "open_editor"], ["Dossier", "open_explorer"]])
       items.push({ text: `${p.name} · ${label}`, hint: "action", attrs: `data-act="${a}" data-path="${esc(p.path)}"` });
@@ -2059,8 +2112,8 @@ function paletteItems() {
   return items.filter((x, i, all) => all.findIndex(o => o.text === x.text && o.href === x.href && o.attrs === x.attrs) === i);
 }
 function renderPalette() {
-  const words = document.getElementById("pal-q").value.toLowerCase().split(/\s+/).filter(Boolean);
-  const items = paletteItems().filter(x => words.every(w => x.text.toLowerCase().includes(w))).slice(0, 12);
+  const words = norm(document.getElementById("pal-q").value).split(/\s+/).filter(Boolean);
+  const items = paletteItems().filter(x => words.every(w => norm(`${x.text} ${x.kw || ""}`).includes(w))).slice(0, 12);
   palSel = Math.max(0, Math.min(palSel, items.length - 1));
   document.getElementById("pal-list").innerHTML = items.map((x, i) => {
     const cls = `pal-item${i === palSel ? " sel" : ""}`, body = `<span>${esc(x.text)}</span><small>${x.hint}</small>`;
@@ -2210,7 +2263,7 @@ document.addEventListener("submit", e => {
   e.preventDefault();
   if (e.target.id === "chat-form") {
     const message = document.getElementById("chat-input").value.trim();
-    if (message && !chat.busy) { chat.draft = ""; chat.mic?.stop(); sendChat(message); }
+    if (message && !chat.busy) { chat.draft = ""; chat.mic?.stop(); voiceCommand(message) || sendChat(message); }
   }
   if (e.target.id === "search-form") {
     const q = document.getElementById("search-q").value.trim();
@@ -2292,19 +2345,28 @@ load();
   window.wisp = (m, text) => { setMood(m, !text); if (text) say(text); };
 
   // Only the local server knows the sessions: the online copies keep a plain Wisp.
+  const NOTIFY = { wow: "Une session Claude attend ta réponse.", gg: "Une session Claude a fini." };
   async function poll() {
-    if (document.hidden) return;
     try {
       const r = await api("/api/activity");
       if (!r.ok) return;
       const { mood } = await r.json();
       if (mood === live) return;
       live = mood;
+      // Polled in the background too (the browser slows it to about once a minute): that's when a notification helps.
+      if (document.hidden && NOTIFY[mood] && window.Notification?.permission === "granted")
+        new Notification("Jarvis", { body: NOTIFY[mood], icon: "/icon-192.png", tag: "jarvis-activity" });
       if (el.dataset.mood !== "angry") { setMood(mood, false); if (LIVE[mood]) say(LIVE[mood]); }
     } catch {}
   }
   setMood("idle", false);
-  if (TOKEN) { poll(); setInterval(poll, 5000); }
+  if (TOKEN) {
+    poll();
+    setInterval(poll, 5000);
+    // Permission can only be asked after a click: the first one in the page.
+    if (window.Notification?.permission === "default")
+      document.addEventListener("click", () => Notification.requestPermission(), { once: true });
+  }
 
   for (const m in LINES) console.assert(document.querySelector(".wisp .e-" + m), "humeur sans visage : " + m);
 })();
