@@ -155,6 +155,17 @@ def test_cpu_percent():
     assert 0 <= system.system()["disk"] <= 100
 
 
+def test_pc_actions_refuse_unknown():
+    for req in ({"act": "pc_open", "name": "../../cmd"}, {"act": "pc_power", "mode": "reboot"},
+                {"act": "pc_volume", "dir": "max"}):
+        try:
+            actions.run(req)
+            raise AssertionError(f"accepté : {req}")
+        except actions.ActionError:
+            pass
+    assert all(p.suffix == ".lnk" for p in actions.start_menu().values())
+
+
 if __name__ == "__main__":
     test_usage()
     test_search()
@@ -164,4 +175,5 @@ if __name__ == "__main__":
     test_moved_session()
     test_session_state()
     test_board()
+    test_pc_actions_refuse_unknown()
     print("ok")

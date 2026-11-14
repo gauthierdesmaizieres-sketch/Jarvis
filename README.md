@@ -2,7 +2,7 @@
 
 Une interface unique pour tout ce qui est installé dans Claude Code : projets, sessions, skills, serveurs MCP, plugins et config.
 
-## Dashboard local (v1 inventaire, v2 actions, v3 cerveau)
+## Dashboard local (v1 inventaire, v2 actions, v3 cerveau, v4 HUD, v5 pilote du PC)
 
 ```bash
 python server.py
@@ -60,6 +60,15 @@ Dans le chat, **Micro** dicte ton message et **Voix · on** lit les réponses à
 
 - **Ctrl+K** (⌘K sur Mac) ouvre la barre de commande : tape quelques lettres puis Entrée pour aller sur un onglet, ouvrir un lien ou lancer une action sur un projet (Claude ▶, Éditeur, Dossier). Flèches pour choisir, Échap pour fermer. Sur la page publique, seuls les onglets et les liens y sont.
 - **État du PC** : sous le réacteur de l'Accueil, le processeur, la mémoire et le disque système, en pourcentage, mis à jour toutes les 5 secondes (`GET /api/system`, même protection que les autres routes privées ; rien n'est publié).
+
+### Pilote du PC (v5)
+
+- **App sur le PC** : lance une fois `powershell -ExecutionPolicy Bypass -File install-pc.ps1`. Le serveur démarre alors avec Windows, sans fenêtre (raccourci « Jarvis serveur » dans `shell:startup`), et **Ctrl+Alt+J** ou « Jarvis » dans le menu Démarrer ouvre Jarvis dans sa propre fenêtre Edge. Pour défaire : supprimer ces deux raccourcis.
+- **Commandes du PC** dans Ctrl+K : son plus fort, moins fort ou coupé ; verrouiller ; mettre en veille et éteindre (avec confirmation, arrêt dans 60 s) ; annuler l'arrêt ; ouvrir n'importe quelle app du menu Démarrer (`GET /api/apps`). C'est une liste fermée : jamais une ligne de commande libre.
+- **Ordres** : dans le chat, un message qui commence par « Jarvis » (« Jarvis, baisse le son », « Jarvis, ouvre le site de Synapse », « Jarvis, lance Claude dans Safran ») lance l'entrée de Ctrl+K qui lui ressemble le plus, au lieu d'interroger Claude. Une dictée au micro qui commence par « Jarvis » part toute seule.
+- **Voix** : **Voix · on** lit les réponses avec une voix de femme française, un peu plus lente et grave : de préférence les voix naturelles d'Edge (Denise, Vivienne…), sinon Hortense de Windows ou « Google français » dans Chrome.
+- **Notifications** : quand une session Claude attend ta réponse ou vient de finir, et que Jarvis est ouvert en arrière-plan (autorisation demandée au premier clic).
+- Le contrôle total (souris, clavier) n'est pas dans Jarvis : c'est le computer use de l'app Claude.
 
 ### Sur le téléphone
 
@@ -132,4 +141,4 @@ Limite connue : les connecteurs gérés par l'app Claude (Docs, Chrome, navigate
 
 ## Pistes pour la suite
 
-- v5 : à choisir (idées : Passage de relais, Météo du code)
+- v6 : à choisir (idées : Passage de relais, Météo du code)

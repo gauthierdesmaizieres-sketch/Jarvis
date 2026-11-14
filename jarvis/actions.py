@@ -5,11 +5,13 @@ Every action works on a folder Claude Code already knows (a project in the
 inventory), never on an arbitrary path sent by the browser.
 """
 
+import ctypes
 import json
 import os
 import re
 import shutil
 import subprocess
+import threading
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
@@ -242,8 +244,61 @@ def chat_events(line, state):
     return []
 
 
+# --- v5: drive the PC. A closed list of actions, never a free command line. ---
+
+def start_menu():
+    """Installed apps: name -> Start menu shortcut (user entries win over all-users ones)."""
+    roots = [Path(os.environ.get(v, "")) / r"Microsoft\Windows\Start Menu\Programs" for v in ("ProgramData", "APPDATA")]
+    return {p.stem: p for r in roots if r.is_dir() for p in r.rglob("*.lnk")
+            if not re.search(r"uninstall|désinstall", p.stem, re.I)}
+
+
+def pc_open(req):
+    lnk = start_menu().get(req.get("name"))
+    if not lnk:
+        raise ActionError("application inconnue")
+    os.startfile(lnk)
+    return f"{lnk.stem} ouvert."
+
+
+VOLUME_KEYS = {"up": (0xAF, 5), "down": (0xAE, 5), "mute": (0xAD, 1)}  # one key press = 2 %
+
+
+def pc_volume(req):
+    key, presses = VOLUME_KEYS.get(req.get("dir"), (None, 0))
+    if not key:
+        raise ActionError("réglage du son inconnu")
+    for _ in range(presses):
+        ctypes.windll.user32.keybd_event(key, 0, 0, 0)
+        ctypes.windll.user32.keybd_event(key, 0, 2, 0)  # key up
+    return {"up": "Son monté.", "down": "Son baissé.", "mute": "Son coupé ou remis."}[req["dir"]]
+
+
+def _sleep():
+    ctypes.windll.powrprof.SetSuspendState(False, False, False)  # sleep, not hibernate
+
+
+def pc_power(req):
+    mode = req.get("mode")
+    if mode == "lock":
+        ctypes.windll.user32.LockWorkStation()
+        return "PC verrouillé."
+    if mode == "sleep":
+        threading.Timer(1, _sleep).start()  # let the answer reach the page first
+        return "Mise en veille…"
+    if mode in ("shutdown", "cancel"):
+        args = ["/s", "/t", "60"] if mode == "shutdown" else ["/a"]
+        r = subprocess.run(["shutdown", *args], capture_output=True, encoding="utf-8", errors="replace",
+                           creationflags=NO_WINDOW)
+        if r.returncode:
+            raise ActionError((r.stdout + r.stderr).strip() or "shutdown a échoué")
+        return "Arrêt du PC dans 60 s (« Annuler l'arrêt » pour l'empêcher)." if mode == "shutdown" else "Arrêt annulé."
+    raise ActionError("action d'alimentation inconnue")
+
+
 ACTIONS = {f.__name__: f for f in (open_explorer, open_editor, claude_new, claude_resume,
-                                    git_status, git_pull, git_pull_all, toggle_plugin, toggle_mcp, rename_link)}
+                                    git_status, git_pull, git_pull_all, toggle_plugin, toggle_mcp, rename_link,
+                                    pc_open, pc_volume, pc_power)}
 
 
 def run(req):

@@ -38,3 +38,4 @@ if __name__ == "__main__":
     for name, size in [("icon-192.png", 192), ("icon-512.png", 512), ("apple-touch-icon.png", 180)]:
         reactor(size).save(OUT / name, optimize=True)
         print(OUT / name)
+    reactor(256).save(OUT / "jarvis.ico", sizes=[(16, 16), (32, 32), (48, 48), (256, 256)])  # PC shortcut

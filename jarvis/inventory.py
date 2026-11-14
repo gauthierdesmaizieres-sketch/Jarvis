@@ -13,6 +13,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import urlsplit
 
+NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)  # no console flash per git call
+
 HOME = Path.home()
 CLAUDE_DIR = HOME / ".claude"
 CLAUDE_JSON = HOME / ".claude.json"
@@ -203,7 +205,7 @@ def _git_info(path):
     def run(*args):
         try:
             r = subprocess.run(["git", "-C", str(path), *args], capture_output=True,
-                               encoding="utf-8", errors="replace", timeout=5)
+                               encoding="utf-8", errors="replace", timeout=5, creationflags=NO_WINDOW)
             return r.stdout.strip() if r.returncode == 0 else None
         except (OSError, subprocess.SubprocessError):
             return None
@@ -223,7 +225,8 @@ NAMES_FILE = LINKS_FILE.with_name("names.json")  # tile names chosen in Accès r
 def _github_links(repo_dir, label_prefix=""):
     try:
         r = subprocess.run(["git", "-C", str(repo_dir), "remote", "get-url", "origin"],
-                           capture_output=True, encoding="utf-8", errors="replace", timeout=5)
+                           capture_output=True, encoding="utf-8", errors="replace", timeout=5,
+                           creationflags=NO_WINDOW)
     except (OSError, subprocess.SubprocessError):
         return []
     m = GITHUB_RE.search(r.stdout.strip()) if r.returncode == 0 else None

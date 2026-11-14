@@ -75,6 +75,7 @@ class Handler(BaseHTTPRequestHandler):
             "/api/git": lambda: actions.git_overview(fetch=qs.get("fetch") == ["1"]),
             "/api/board": lambda: board.board(),
             "/api/system": lambda: system.system(),
+            "/api/apps": lambda: sorted(actions.start_menu(), key=str.lower),
         }
         if path in private:
             if not self._local():
@@ -155,11 +156,19 @@ class Handler(BaseHTTPRequestHandler):
             proc.wait()
 
     def log_message(self, fmt, *args):
-        sys.stderr.write("[jarvis] " + fmt % args + "\n")
+        if sys.stderr:  # None under pythonw (started with Windows, no console)
+            sys.stderr.write("[jarvis] " + fmt % args + "\n")
 
 
 def main():
     port = int(sys.argv[1]) if len(sys.argv) > 1 else 7777
+    if os.name == "nt" and sys.stdout is None:
+        # pythonw (started with Windows) has no console, so every git/claude child would pop and
+        # close its own window, slowly. One hidden console, shared by all children, avoids that.
+        import ctypes
+        k32 = ctypes.windll.kernel32
+        k32.AllocConsole()
+        ctypes.windll.user32.ShowWindow(k32.GetConsoleWindow(), 0)
     # On Windows, address reuse lets a second Jarvis silently share the port with the first.
     ThreadingHTTPServer.allow_reuse_address = False
     try:
