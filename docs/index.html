@@ -339,7 +339,7 @@
 </div>
 
 <script>window.JARVIS_DATA = {
-"generatedAt": "2026-11-22T06:49:18.212048+00:00",
+"generatedAt": "2026-11-22T07:39:08.061091+00:00",
 "account": {},
 "globalClaudeMd": null,
 "skills": [
@@ -1598,6 +1598,13 @@ const ROADMAP = [
     ["Questions à Claude · fait", "Ce qui n'est pas un ordre part à Claude, qui répond en Jarvis, court et à l'oral"],
     ["Parole en direct · fait", "Chaque phrase est lue dès qu'elle arrive"],
     ["Suite sans « Jarvis » · fait", "8 s pour répondre après qu'il a parlé"],
+    ["Voix VoiceStudio · fait", "Les voix de Souffle (OmniVoice, en local), phrase par phrase"],
+  ]},
+  { v: "v7", title: "Briefing", status: "En ligne", live: true, items: [
+    ["Briefing au démarrage · fait", "Le PC s'allume, Jarvis s'ouvre et fait le point à voix haute"],
+    ["Sur demande · fait", "« Jarvis, briefing » ; aussi à la première ouverture du jour"],
+    ["Météo et agenda", "Pas encore : il faut une ville et un accès au calendrier"],
+    ["Appel au téléphone", "Plus tard : VoiceStudio sait appeler via Twilio"],
   ]},
 ];
 
@@ -1934,6 +1941,7 @@ function voiceCommand(message, spoken = false) {
   if (/^\s*jarvis[\s,.!?:]*$/i.test(message)) return aloud && (talk("Oui ?"), true);  // just the name: listening
   const m = norm(message).match(/^jarvis\b[\s,.!?:]*(.+)/);
   if (!m) return false;
+  if (/\b(briefing|fais le point|point du jour)\b/.test(m[1])) return briefing(), true;
   const words = m[1].replace(/[^a-z0-9' ]/g, " ").split(/\s+/).filter(w => w.length > 1 && !FILLER.includes(w));
   let best = null, score = 0, covered = 0;
   for (const x of paletteItems()) {
@@ -2013,7 +2021,7 @@ function sayStudio(text, voice) {
     const url = URL.createObjectURL(b);
     audioNow = new Audio(url);
     audioNow.onended = audioNow.onerror = () => { URL.revokeObjectURL(url); done(); };
-    audioNow.play().catch(() => { sayBrowser(text); done(); });  // autoplay refused
+    audioNow.play().catch(e => { e.name === "NotAllowedError" ? sayLater(text) : sayBrowser(text); done(); });
   }), () => {
     if (e !== epoch) return;
     studio = [];  // VoiceStudio is gone: the browser speaks from now on
@@ -2025,9 +2033,48 @@ function sayBrowser(c) {
   // Natural voices sound best untouched; the old robotic ones a little slower and lower.
   const u = Object.assign(new SpeechSynthesisUtterance(c.trim()),
     { lang: "fr-FR", voice, rate: natural ? 1 : .95, pitch: natural ? 1 : .9 });
-  u.onend = u.onerror = () => { utterances.delete(u); spoke(); };
+  u.onend = u.onerror = e => { utterances.delete(u); if (e.error === "not-allowed") sayLater(c); spoke(); };
   utterances.add(u);
   speechSynthesis.speak(u);
+}
+// The browser mutes a page nobody clicked yet (the window opened at startup): say it at the first click or key.
+let later = [];
+function sayLater(text) {
+  if (!later.length) for (const ev of ["pointerdown", "keydown"]) addEventListener(ev, sayNow, { once: true, capture: true });
+  later.push(text);
+}
+function sayNow() {
+  if (later.length) talk(later.splice(0).join(" "));
+}
+
+// v7: the briefing. Said when the PC starts (server.py --briefing opens /?briefing=1), at the first opening
+// of the day when the voice is on, and on "Jarvis, briefing". Built here from Jarvis's own data: instant, free.
+async function briefing() {
+  try { localStorage.setItem("jarvis.briefing", new Date().toLocaleDateString("sv")); } catch {}
+  const get = u => api(u).then(r => r.ok ? r.json() : null).catch(() => null);
+  const [act, git, usage, sys] = await Promise.all(["/api/activity", "/api/git", "/api/usage", "/api/system"].map(get));
+  const now = new Date(), h = now.getHours(), min = now.getMinutes();
+  const list = a => a.length > 1 ? `${a.slice(0, -1).join(", ")} et ${a.at(-1)}` : a[0];
+  const s = [`${h < 18 ? "Bonjour" : "Bonsoir"}. Nous sommes ${now.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" })}, il est ${h} heures${min ? ` ${min}` : ""}.`];
+  const yesterday = new Date(now - 864e5).toLocaleDateString("sv"), tokens = {};
+  for (const r of usage?.rows || []) if (r.day === yesterday && r.project !== "(sans dossier)") tokens[r.project] = (tokens[r.project] || 0) + r.output;
+  const worked = Object.keys(tokens).sort((a, b) => tokens[b] - tokens[a]).slice(0, 3);
+  if (worked.length) s.push(`Hier, vous avez surtout travaillé sur ${list(worked)}.`);
+  const waiting = act?.sessions?.filter(x => x.state === "waiting").length;
+  if (waiting) s.push(waiting > 1 ? `${waiting} sessions Claude attendent votre réponse.` : "Une session Claude attend votre réponse.");
+  const repos = (git || []).filter(g => !/[\\/]\.claude[\\/]worktrees[\\/]/.test(g.path));  // the projects, not Claude's worktrees
+  const unpushed = repos.filter(g => g.ahead > 0).map(g => g.name), dirty = repos.filter(g => g.dirty?.length).map(g => g.name);
+  if (unpushed.length) s.push(`Des commits ne sont pas encore poussés dans ${list(unpushed)}.`);
+  if (dirty.length) s.push(dirty.length > 3 ? `${dirty.length} projets ont des modifications non commitées, dont ${list(dirty.slice(0, 2))}.`
+    : `Des modifications ne sont pas commitées dans ${list(dirty)}.`);
+  if (sys?.diskFreeGb < 30) s.push(`Attention, il ne reste que ${sys.diskFreeGb} gigaoctets sur le disque.`);
+  if (sys?.mem > 90) s.push("La mémoire est presque pleine.");
+  if (s.length === 1) s.push("Rien ne vous attend, tout est en ordre.");
+  s.push("Que puis-je faire pour vous ?");
+  const text = s.join(" ");
+  chat.log.push({ role: "claude", text });
+  setTab("chat");
+  talk(text);
 }
 function say(text) {
   const sv = studioVoice();
@@ -2355,6 +2402,11 @@ async function load() {
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
     data = await r.json();
     render();
+    let last = "";
+    try { last = localStorage.getItem("jarvis.briefing") || ""; } catch {}
+    const asked = new URLSearchParams(location.search).has("briefing");
+    if (asked) history.replaceState(null, "", "/");  // a reload doesn't say it again
+    if (TOKEN && (asked || (speak && last !== new Date().toLocaleDateString("sv")))) briefing();
   } catch (e) {
     app.innerHTML = `<p class="empty">// échec du chargement de l'inventaire : ${esc(e.message)}</p>`;
   }
