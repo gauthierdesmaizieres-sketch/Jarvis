@@ -10,7 +10,7 @@ $shell = New-Object -ComObject WScript.Shell
 
 $s = $shell.CreateShortcut((Join-Path ([Environment]::GetFolderPath("Startup")) "Jarvis serveur.lnk"))
 $s.TargetPath = $pyw
-$s.Arguments = "`"$dir\server.py`""
+$s.Arguments = "`"$dir\server.py`" --briefing"  # opens the window, which says the morning briefing
 $s.WorkingDirectory = $dir
 $s.Save()
 

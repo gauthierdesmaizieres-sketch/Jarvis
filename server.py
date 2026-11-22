@@ -163,8 +163,21 @@ class Handler(BaseHTTPRequestHandler):
             sys.stderr.write("[jarvis] " + fmt % args + "\n")
 
 
+def open_window(url):
+    """Jarvis in its own Edge window, allowed to speak before any click (the briefing at startup)."""
+    edge = Path(os.environ.get("ProgramFiles(x86)", r"C:\Program Files (x86)")) / "Microsoft/Edge/Application/msedge.exe"
+    try:
+        # shortcut: Edge ignores the flag when it already runs in the background (startup boost);
+        # the page then says the briefing at the first click or key.
+        subprocess.Popen([str(edge), f"--app={url}", "--autoplay-policy=no-user-gesture-required"])
+    except OSError:
+        import webbrowser
+        webbrowser.open(url)
+
+
 def main():
-    port = int(sys.argv[1]) if len(sys.argv) > 1 else 7777
+    args = [a for a in sys.argv[1:] if not a.startswith("--")]
+    port = int(args[0]) if args else 7777
     if os.name == "nt" and sys.stdout is None:
         # pythonw (started with Windows) has no console, so every git/claude child would pop and
         # close its own window, slowly. One hidden console, shared by all children, avoids that.
@@ -182,6 +195,8 @@ def main():
     print(f"Jarvis running on http://127.0.0.1:{port}", flush=True)
     if Handler.tailnet:
         print(f"Sur le téléphone (après « tailscale serve --bg {port} ») : https://{Handler.tailnet}", flush=True)
+    if "--briefing" in sys.argv:  # started with Windows: open the window, which says the briefing
+        open_window(f"http://127.0.0.1:{port}/?briefing=1")
     try:
         server.serve_forever()
     except KeyboardInterrupt:
