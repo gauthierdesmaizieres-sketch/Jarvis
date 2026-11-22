@@ -2,7 +2,7 @@
 
 Une interface unique pour tout ce qui est installé dans Claude Code : projets, sessions, skills, serveurs MCP, plugins et config.
 
-## Dashboard local (v1 inventaire, v2 actions, v3 cerveau, v4 HUD, v5 pilote du PC)
+## Dashboard local (v1 inventaire, v2 actions, v3 cerveau, v4 HUD, v5 pilote du PC, v6 conversation)
 
 ```bash
 python server.py
@@ -67,7 +67,9 @@ Dans le chat, **Micro** dicte ton message et **Voix · on** lit les réponses à
 - **Commandes du PC** dans Ctrl+K : son plus fort, moins fort ou coupé ; verrouiller ; mettre en veille et éteindre (avec confirmation, arrêt dans 60 s) ; annuler l'arrêt ; ouvrir n'importe quelle app du menu Démarrer (`GET /api/apps`). C'est une liste fermée : jamais une ligne de commande libre.
 - **Ordres** : dans le chat, un message qui commence par « Jarvis » (« Jarvis, baisse le son », « Jarvis, ouvre le site de Synapse », « Jarvis, lance Claude dans Safran ») lance l'entrée de Ctrl+K qui lui ressemble le plus, au lieu d'interroger Claude. Une dictée au micro qui commence par « Jarvis » part toute seule.
 - **Voix** : **Voix · on** lit les réponses avec une voix de femme française. Dans Edge (la fenêtre Jarvis), Jarvis prend les voix naturelles en ligne (Denise, Vivienne, Eloise…), les plus fluides ; une liste à côté du bouton permet d'en choisir une autre, et elle la fait entendre. Le texte est nettoyé (code, liens, Markdown) et lu par morceaux de phrases, car ces voix s'arrêtent seules au bout d'environ 15 s.
+- **Voix VoiceStudio (v6)** : si l'application VoiceStudio est ouverte (OmniVoice en local sur le GPU, l'outil qui a servi aux voix de Souffle), Jarvis parle avec ses profils de voix français (Ancre, Aube, Velours…), au choix dans la même liste. Chaque phrase est générée pendant que la précédente est lue (environ 1,5 s par phrase). Le premier appel charge le modèle (environ 1 min) : Jarvis le fait dès l'ouverture de la page. Si VoiceStudio est fermé, il reprend la voix du navigateur.
 - **Écoute permanente** : **Écoute · on** garde le micro ouvert tant que la fenêtre Jarvis est ouverte ; seule une phrase qui contient « Jarvis » déclenche quelque chose (« ok Jarvis, baisse le son »), le reste est ignoré. Le réglage est gardé d'une ouverture à l'autre. Dans Edge, ce qui est entendu passe par le service de reconnaissance en ligne de Microsoft.
+- **Conversation (v6)** : une phrase pour Jarvis qui n'est pas un ordre connu (« Jarvis, c'est quoi un webhook ? ») part à Claude, dans le projet choisi du chat. Claude répond en Jarvis, en une à trois phrases faites pour l'oral, et chaque phrase est lue dès qu'elle arrive. Dans les 8 s qui suivent, on peut répondre sans redire « Jarvis » : la conversation continue dans la même session. Dire juste « Jarvis » répond « Oui ? ». Le micro se coupe pendant que Jarvis parle, pour qu'il ne s'entende pas lui-même.
 - **Notifications** : quand une session Claude attend ta réponse ou vient de finir, et que Jarvis est ouvert en arrière-plan (autorisation demandée au premier clic).
 - Le contrôle total (souris, clavier) n'est pas dans Jarvis : c'est le computer use de l'app Claude.
 
@@ -142,4 +144,4 @@ Limite connue : les connecteurs gérés par l'app Claude (Docs, Chrome, navigate
 
 ## Pistes pour la suite
 
-- v6 : à choisir (idées : Passage de relais, Météo du code)
+- v7 : à choisir (idées : Modes en un ordre, Passage de relais, Météo du code)

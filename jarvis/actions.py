@@ -133,6 +133,11 @@ def git_overview(fetch=False):
         return list(pool.map(lambda p: _repo_report(p, fetch), _git_projects()))
 
 
+VOICE_PROMPT = ("Tu es Jarvis, l'assistant vocal de l'utilisateur, sur son PC. Ta réponse sera lue à voix haute : "
+                "réponds en français, en une à trois phrases courtes et naturelles, comme à l'oral. Pas de Markdown, "
+                "de liste, de code, de lien ni de chemin de fichier, sauf si on te le demande.")
+
+
 def chat_command(req):
     """argv and folder for one chat turn with `claude -p`; the message goes on stdin.
 
@@ -151,6 +156,8 @@ def chat_command(req):
         if not SESSION_RE.match(sid) or not (CLAUDE_DIR / "projects" / _encode_project(str(path)) / f"{sid}.jsonl").is_file():
             raise ActionError("session inconnue pour ce projet")
         argv += ["--resume", sid]
+    if req.get("voice"):
+        argv += ["--append-system-prompt", VOICE_PROMPT]
     return argv, path, message
 
 

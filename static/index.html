@@ -371,6 +371,12 @@ const ROADMAP = [
     ["Ordres à la voix · fait", "« Jarvis, ouvre Spotify » dans le chat"],
     ["Contrôle total", "Souris et clavier : via le computer use de l'app Claude, pas dans Jarvis"],
   ]},
+  { v: "v6", title: "Conversation", status: "En ligne", live: true, items: [
+    ["Écoute permanente · fait", "« Jarvis, … » à tout moment, le reste est ignoré"],
+    ["Questions à Claude · fait", "Ce qui n'est pas un ordre part à Claude, qui répond en Jarvis, court et à l'oral"],
+    ["Parole en direct · fait", "Chaque phrase est lue dès qu'elle arrive"],
+    ["Suite sans « Jarvis » · fait", "8 s pour répondre après qu'il a parlé"],
+  ]},
 ];
 
 // Set by snapshot.py in the online copy, which works without the PC.
@@ -651,22 +657,24 @@ function chatView() {
         ${Recognition && !chat.busy ? `<button class="act ${chat.mic ? "off" : ""}" type="button" data-chat="mic">${chat.mic ? "■ J'écoute…" : "Micro"}</button>` : ""}
         ${Recognition ? `<button class="act ${listen ? "on" : ""}" type="button" data-chat="listen" title="Écouter en permanence : dis « Jarvis, … »">Écoute · ${listen ? "on" : "off"}</button>` : ""}
         ${window.speechSynthesis ? `<button class="act ${speak ? "on" : ""}" type="button" data-chat="voice" title="Lire les réponses à voix haute">Voix · ${speak ? "on" : "off"}</button>` : ""}
-        ${speak && frVoices().length > 1 ? `<select id="chat-voice" aria-label="Voix de Jarvis">${frVoices().map(v =>
-          `<option ${v === jarvisVoice() ? "selected" : ""}>${esc(v.name)}</option>`).join("")}</select>` : ""}
+        ${speak && studio.length + frVoices().length > 1 ? `<select id="chat-voice" aria-label="Voix de Jarvis">${[...studio, ...frVoices().map(v => v.name)].map(n =>
+          `<option ${n === voiceLabel() ? "selected" : ""}>${esc(n)}</option>`).join("")}</select>` : ""}
         ${chat.micError ? `<span class="note">micro : ${esc(chat.micError)}</span>` : ""}</div>
     </form>
     <p class="note">Claude répond avec « claude -p » dans le dossier du projet. Ce qui demanderait ta confirmation (modifier un fichier, lancer une commande non autorisée) est refusé automatiquement : pour ça, ouvre la session dans un terminal.</p>`;
 }
 
-async function sendChat(message) {
+// short: answer as Jarvis, in a few spoken sentences; aloud: read the answer while it streams in.
+async function sendChat(message, { short = false, aloud = speak } = {}) {
   const reply = { role: "claude", text: "" };
+  let said = 0;  // how much of the reply was already spoken
   chat.log.push({ role: "user", text: message }, reply);
   chat.busy = true;
   chat.ctrl = new AbortController();
   render();
   try {
     const r = await api("/api/chat", { method: "POST", signal: chat.ctrl.signal,
-      body: JSON.stringify({ path: chat.path, session: chat.session, message }) });
+      body: JSON.stringify({ path: chat.path, session: chat.session, message, voice: short }) });
     if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || `HTTP ${r.status}`);
     const reader = r.body.pipeThrough(new TextDecoderStream()).getReader();
     let buf = "";
@@ -683,33 +691,43 @@ async function sendChat(message) {
         if (ev.error && ev.error !== reply.text.trim()) reply.error = ev.error;
       }
       refreshChat();
+      // Speak each finished sentence as soon as it arrives, instead of waiting for the whole answer.
+      const ready = aloud && reply.text.slice(said).match(/^[\s\S]*[.!?…:](?=\s)/);
+      if (ready) { say(ready[0]); said += ready[0].length; }
     }
   } catch (e) {
     if (e.name !== "AbortError") reply.error = e.message;
   }
   chat.busy = false;
   if (tab === "chat") { render(); document.getElementById("chat-input")?.focus(); }
-  if (speak && reply.text) talk(reply.text.replace(/^⚙ .*$/gm, ""));
+  if (aloud) say(reply.text.slice(said) + (reply.error ? " Une erreur est survenue." : ""));
 }
 
 const FILLER = ["le", "la", "les", "un", "une", "de", "du", "des", "en", "et", "mon", "ma", "mes", "moi", "stp", "dans",
   "sur", "pour", "au", "aux", "avec", "ce", "cet", "cette", "va", "vas", "me", "il", "te", "plait", "plais", "est", "qui", "que"];
 // "Jarvis, ouvre Spotify": the entry sharing the most words with the order (filler words ignored).
-function voiceCommand(message) {
-  const m = norm(message).match(/^jarvis\b[\s,.!:]*(.+)/);
+// Anything that isn't an order ("Jarvis, c'est quoi un webhook ?") goes to Claude, answered as Jarvis.
+function voiceCommand(message, spoken = false) {
+  const aloud = spoken || speak;
+  if (/^\s*jarvis[\s,.!?:]*$/i.test(message)) return aloud && (talk("Oui ?"), true);  // just the name: listening
+  const m = norm(message).match(/^jarvis\b[\s,.!?:]*(.+)/);
   if (!m) return false;
   const words = m[1].replace(/[^a-z0-9' ]/g, " ").split(/\s+/).filter(w => w.length > 1 && !FILLER.includes(w));
-  let best = null, score = 0;
+  let best = null, score = 0, covered = 0;
   for (const x of paletteItems()) {
     // Words of the name count double; extra keywords ("ouvre", "baisse") only break ties, never match alone.
     const t = words.filter(w => norm(x.text).includes(w)).length;
     const n = t && 2 * t + words.filter(w => norm(x.kw || "").includes(w)).length;
-    if (n > score) [best, score] = [x, n];
+    if (n > score) [best, score, covered] = [x, n, words.filter(w => norm(`${x.text} ${x.kw || ""}`).includes(w)).length];
   }
-  const reply = best ? `→ ${best.text}` : "Je n'ai pas compris cet ordre. Essaie Ctrl+K pour voir les commandes.";
-  chat.log.push({ role: "user", text: message }, { role: "claude", text: reply });
+  // An order names its target in most of its words; a question only brushes past one ("le commit de Synapse").
+  if (!best || covered * 2 < words.length) {
+    if (!chat.busy) sendChat(message.replace(/^\s*jarvis\b[\s,.!?:]*/i, ""), { short: true, aloud });
+    return true;
+  }
+  chat.log.push({ role: "user", text: message }, { role: "claude", text: `→ ${best.text}` });
   render();
-  if (speak) talk(reply.replace("→ ", ""));
+  if (aloud) talk(best.text.replace(/ · /g, ", ").replace(/[^\p{L}\p{N}\s,'()-]/gu, ""));
   if (best?.href) window.open(best.href, "_blank", "noopener");  // shortcut: a popup blocker may stop it after dictation, then click the link
   else if (best) {
     const b = Object.assign(document.createElement("div"), { innerHTML: `<button ${best.attrs}></button>` }).firstChild;
@@ -732,10 +750,66 @@ function jarvisVoice() {
 }
 // Edge loads its natural voices a moment after the page: refresh the voice list when they arrive.
 if (window.speechSynthesis) speechSynthesis.onvoiceschanged = () => tab === "chat" && !chat.busy && render();
-function talk(text) {
+let followUntil = 0;  // just after Jarvis spoke, a reply needs no "Jarvis" first
+const utterances = new Set();  // kept alive: Chrome drops the end event of a collected utterance
+// v6: VoiceStudio (local OmniVoice, the Souffle voices) when it runs; otherwise the browser's voice.
+let studio = [];
+if (TOKEN) api("/api/voices").then(r => r.ok ? r.json() : []).then(v => {
+  studio = v;
+  // The first sentence loads the model on the GPU (~1 min): do it now, not on Jarvis's first answer.
+  if (speak && studioVoice()) api("/api/tts", { method: "POST", body: JSON.stringify({ text: "Prêt.", voice: studioVoice() }) });
+  if (tab === "chat" && !chat.busy) render();
+}).catch(() => {});
+const studioVoice = () => studio.includes(voiceName) ? voiceName
+  : frVoices().some(v => v.name === voiceName) ? null : studio[0] || null;
+const voiceLabel = () => studioVoice() || jarvisVoice()?.name;
+let epoch = 0, audioLeft = 0, audioNow = null, ttsChain = Promise.resolve(), playChain = Promise.resolve();
+function hush() {
+  epoch++;
+  audioLeft = 0;
+  audioNow?.pause();
+  ttsChain = playChain = Promise.resolve();
   speechSynthesis.cancel();
+}
+function talk(text) {
+  hush();
+  say(text);
+}
+function spoke() {  // one piece ended: when it was the last, listen for the reply
+  if (audioLeft || speechSynthesis.pending || speechSynthesis.speaking) return;
+  followUntil = Date.now() + 8000;
+  startEar();
+}
+function sayStudio(text, voice) {
+  const e = epoch;
+  audioLeft++;
+  // Made one at a time (one GPU), played as soon as ready: the next sentence is made while this one plays.
+  const audio = ttsChain.then(() => e === epoch && api("/api/tts", { method: "POST", body: JSON.stringify({ text, voice }) })
+    .then(r => r.ok ? r.blob() : Promise.reject(r.status)));
+  ttsChain = audio.catch(() => {});
+  playChain = playChain.then(() => audio).then(b => e === epoch && b && new Promise(done => {
+    const url = URL.createObjectURL(b);
+    audioNow = new Audio(url);
+    audioNow.onended = audioNow.onerror = () => { URL.revokeObjectURL(url); done(); };
+    audioNow.play().catch(() => { sayBrowser(text); done(); });  // autoplay refused
+  }), () => {
+    if (e !== epoch) return;
+    studio = [];  // VoiceStudio is gone: the browser speaks from now on
+    sayBrowser(text);
+  }).finally(() => { if (e === epoch) { audioLeft--; spoke(); } });
+}
+function sayBrowser(c) {
   const voice = jarvisVoice(), natural = NATURAL.test(voice?.name);
-  const clean = text.replace(/```[\s\S]*?```/g, " ").replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
+  // Natural voices sound best untouched; the old robotic ones a little slower and lower.
+  const u = Object.assign(new SpeechSynthesisUtterance(c.trim()),
+    { lang: "fr-FR", voice, rate: natural ? 1 : .95, pitch: natural ? 1 : .9 });
+  u.onend = u.onerror = () => { utterances.delete(u); spoke(); };
+  utterances.add(u);
+  speechSynthesis.speak(u);
+}
+function say(text) {
+  const sv = studioVoice();
+  const clean = text.replace(/^⚙ .*$/gm, "").replace(/```[\s\S]*?```/g, " ").replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
     .replace(/https?:\/\/\S+/g, "").replace(/[*_#`>|~]/g, "").replace(/\s*\n+\s*/g, ". ");
   // Online voices stop after ~15 s of one utterance: speak chunks of whole sentences, queued.
   const chunks = [];
@@ -743,22 +817,25 @@ function talk(text) {
     if (chunks.length && chunks.at(-1).length + s.length < 220) chunks[chunks.length - 1] += s;
     else chunks.push(s);
   }
-  // Natural voices sound best untouched; the old robotic ones a little slower and lower.
-  for (const c of chunks.filter(c => /\w/.test(c)))
-    speechSynthesis.speak(Object.assign(new SpeechSynthesisUtterance(c.trim()),
-      { lang: "fr-FR", voice, rate: natural ? 1 : .95, pitch: natural ? 1 : .9 }));
+  for (const c of chunks.filter(c => /\w/.test(c))) {
+    ear?.abort();  // the microphone would hear Jarvis itself
+    sv ? sayStudio(c.trim(), sv) : sayBrowser(c);
+  }
 }
 
 // v5: always listening. Only a sentence containing "Jarvis" does something ("ok Jarvis, baisse le son");
-// everything else heard is dropped. The browser stops after each silence, so it starts again.
+// or any sentence in the 8 s after Jarvis spoke (the conversation goes on); everything else is dropped.
+// The browser stops after each silence, so it starts again.
 function startEar() {
-  if (!TOKEN || !Recognition || !listen || ear || chat.mic) return;
+  if (!TOKEN || !Recognition || !listen || ear || chat.mic || audioLeft || speechSynthesis.speaking || speechSynthesis.pending) return;
   ear = Object.assign(new Recognition(), { lang: "fr-FR", continuous: true });
   ear.onresult = e => {
     const r = e.results[e.results.length - 1];
     const t = r.isFinal ? r[0].transcript.trim() : "";
     const i = t.search(/\bjarvis\b/i);
-    if (i >= 0 && !speechSynthesis.speaking) voiceCommand(t.slice(i));  // not Jarvis hearing its own voice
+    if (!t || chat.busy) return;
+    if (i >= 0) voiceCommand(t.slice(i), true);
+    else if (Date.now() < followUntil) voiceCommand(`Jarvis, ${t}`, true);
   };
   ear.onerror = e => {
     if (e.error !== "not-allowed") return;
@@ -786,7 +863,7 @@ function toggleMic() {
   rec.onend = () => {
     chat.mic = null;
     startEar();
-    if (/^jarvis\b/i.test(chat.draft.trim()) && !chat.busy) { const m = chat.draft.trim(); chat.draft = ""; voiceCommand(m); }
+    if (/^jarvis\b/i.test(chat.draft.trim()) && !chat.busy) { const m = chat.draft.trim(); chat.draft = ""; voiceCommand(m, true); }
     else if (tab === "chat") render();
   };
   chat.micError = "";
@@ -1087,7 +1164,7 @@ document.addEventListener("click", e => {
   if (c?.dataset.chat === "voice") {
     speak = !speak;
     try { localStorage.setItem("jarvis.speak", speak ? "1" : "0"); } catch {}
-    speak ? talk("Bonjour. Je suis Jarvis, à votre service.") : speechSynthesis.cancel();
+    speak ? talk("Bonjour. Je suis Jarvis, à votre service.") : hush();
     render();
   }
   const s = e.target.closest("[data-share]");

@@ -23,7 +23,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
-from jarvis import actions, board, history, system
+from jarvis import actions, board, history, system, voice
 from jarvis.inventory import collect
 from snapshot import APP_HEAD
 
@@ -76,6 +76,7 @@ class Handler(BaseHTTPRequestHandler):
             "/api/board": lambda: board.board(),
             "/api/system": lambda: system.system(),
             "/api/apps": lambda: sorted(actions.start_menu(), key=str.lower),
+            "/api/voices": lambda: voice.voices(),
         }
         if path in private:
             if not self._local():
@@ -113,12 +114,14 @@ class Handler(BaseHTTPRequestHandler):
                 and hmac.compare_digest(self.headers.get("X-Jarvis-Token", ""), TOKEN))
 
     def do_POST(self):
-        if self.path not in ("/api/action", "/api/chat"):
+        if self.path not in ("/api/action", "/api/chat", "/api/tts"):
             return self._send(404, b"not found", "text/plain")
         if not self._local():
             return self._send(403, b"forbidden", "text/plain")
         try:
             req = json.loads(self.rfile.read(min(int(self.headers.get("Content-Length") or 0), 100000)))
+            if self.path == "/api/tts":
+                return self._send(200, voice.speak(req.get("text"), req.get("voice")), "audio/mpeg")
             if self.path == "/api/chat":
                 return self._chat(*actions.chat_command(req))
             status, out = 200, {"ok": True, "output": actions.run(req)}

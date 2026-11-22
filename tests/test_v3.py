@@ -7,7 +7,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from jarvis import actions, board, inventory, system
+from jarvis import actions, board, inventory, system, voice
 from jarvis.actions import chat_events
 from jarvis.history import NO_FOLDER, parse_usage, search_lines, session_state
 
@@ -166,6 +166,16 @@ def test_pc_actions_refuse_unknown():
     assert all(p.suffix == ".lnk" for p in actions.start_menu().values())
 
 
+
+def test_voice_refuses_empty():
+    for text, name in (("", "Ancre"), ("Bonjour.", ""), ("   ", "Ancre")):
+        try:
+            voice.speak(text, name)
+            raise AssertionError(f"accepté : {text!r}, {name!r}")
+        except ValueError:
+            pass
+
+
 if __name__ == "__main__":
     test_usage()
     test_search()
@@ -176,4 +186,5 @@ if __name__ == "__main__":
     test_session_state()
     test_board()
     test_pc_actions_refuse_unknown()
+    test_voice_refuses_empty()
     print("ok")
