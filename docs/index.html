@@ -339,7 +339,7 @@
 </div>
 
 <script>window.JARVIS_DATA = {
-"generatedAt": "2026-11-22T06:38:43.628331+00:00",
+"generatedAt": "2026-11-22T06:49:18.212048+00:00",
 "account": {},
 "globalClaudeMd": null,
 "skills": [
@@ -737,7 +737,7 @@
 {
 "name": "claude-plugins-official",
 "url": "https://github.com/anthropics/claude-plugins-official.git",
-"lastUpdated": "2026-11-22T06:35:29.289Z"
+"lastUpdated": "2026-11-22T06:44:46.102Z"
 },
 {
 "name": "ponytail",
@@ -747,7 +747,7 @@
 {
 "name": "anthropic-agent-skills",
 "url": "anthropics/skills",
-"lastUpdated": "2026-11-22T06:35:29.839Z"
+"lastUpdated": "2026-11-22T06:44:47.029Z"
 },
 {
 "name": "lemolab",
@@ -1879,8 +1879,8 @@ function chatView() {
         ${Recognition && !chat.busy ? `<button class="act ${chat.mic ? "off" : ""}" type="button" data-chat="mic">${chat.mic ? "■ J'écoute…" : "Micro"}</button>` : ""}
         ${Recognition ? `<button class="act ${listen ? "on" : ""}" type="button" data-chat="listen" title="Écouter en permanence : dis « Jarvis, … »">Écoute · ${listen ? "on" : "off"}</button>` : ""}
         ${window.speechSynthesis ? `<button class="act ${speak ? "on" : ""}" type="button" data-chat="voice" title="Lire les réponses à voix haute">Voix · ${speak ? "on" : "off"}</button>` : ""}
-        ${speak && frVoices().length > 1 ? `<select id="chat-voice" aria-label="Voix de Jarvis">${frVoices().map(v =>
-          `<option ${v === jarvisVoice() ? "selected" : ""}>${esc(v.name)}</option>`).join("")}</select>` : ""}
+        ${speak && studio.length + frVoices().length > 1 ? `<select id="chat-voice" aria-label="Voix de Jarvis">${[...studio, ...frVoices().map(v => v.name)].map(n =>
+          `<option ${n === voiceLabel() ? "selected" : ""}>${esc(n)}</option>`).join("")}</select>` : ""}
         ${chat.micError ? `<span class="note">micro : ${esc(chat.micError)}</span>` : ""}</div>
     </form>
     <p class="note">Claude répond avec « claude -p » dans le dossier du projet. Ce qui demanderait ta confirmation (modifier un fichier, lancer une commande non autorisée) est refusé automatiquement : pour ça, ouvre la session dans un terminal.</p>`;
@@ -1974,12 +1974,63 @@ function jarvisVoice() {
 if (window.speechSynthesis) speechSynthesis.onvoiceschanged = () => tab === "chat" && !chat.busy && render();
 let followUntil = 0;  // just after Jarvis spoke, a reply needs no "Jarvis" first
 const utterances = new Set();  // kept alive: Chrome drops the end event of a collected utterance
-function talk(text) {
+// v6: VoiceStudio (local OmniVoice, the Souffle voices) when it runs; otherwise the browser's voice.
+let studio = [];
+if (TOKEN) api("/api/voices").then(r => r.ok ? r.json() : []).then(v => {
+  studio = v;
+  // The first sentence loads the model on the GPU (~1 min): do it now, not on Jarvis's first answer.
+  if (speak && studioVoice()) api("/api/tts", { method: "POST", body: JSON.stringify({ text: "Prêt.", voice: studioVoice() }) });
+  if (tab === "chat" && !chat.busy) render();
+}).catch(() => {});
+const studioVoice = () => studio.includes(voiceName) ? voiceName
+  : frVoices().some(v => v.name === voiceName) ? null : studio[0] || null;
+const voiceLabel = () => studioVoice() || jarvisVoice()?.name;
+let epoch = 0, audioLeft = 0, audioNow = null, ttsChain = Promise.resolve(), playChain = Promise.resolve();
+function hush() {
+  epoch++;
+  audioLeft = 0;
+  audioNow?.pause();
+  ttsChain = playChain = Promise.resolve();
   speechSynthesis.cancel();
+}
+function talk(text) {
+  hush();
   say(text);
 }
-function say(text) {
+function spoke() {  // one piece ended: when it was the last, listen for the reply
+  if (audioLeft || speechSynthesis.pending || speechSynthesis.speaking) return;
+  followUntil = Date.now() + 8000;
+  startEar();
+}
+function sayStudio(text, voice) {
+  const e = epoch;
+  audioLeft++;
+  // Made one at a time (one GPU), played as soon as ready: the next sentence is made while this one plays.
+  const audio = ttsChain.then(() => e === epoch && api("/api/tts", { method: "POST", body: JSON.stringify({ text, voice }) })
+    .then(r => r.ok ? r.blob() : Promise.reject(r.status)));
+  ttsChain = audio.catch(() => {});
+  playChain = playChain.then(() => audio).then(b => e === epoch && b && new Promise(done => {
+    const url = URL.createObjectURL(b);
+    audioNow = new Audio(url);
+    audioNow.onended = audioNow.onerror = () => { URL.revokeObjectURL(url); done(); };
+    audioNow.play().catch(() => { sayBrowser(text); done(); });  // autoplay refused
+  }), () => {
+    if (e !== epoch) return;
+    studio = [];  // VoiceStudio is gone: the browser speaks from now on
+    sayBrowser(text);
+  }).finally(() => { if (e === epoch) { audioLeft--; spoke(); } });
+}
+function sayBrowser(c) {
   const voice = jarvisVoice(), natural = NATURAL.test(voice?.name);
+  // Natural voices sound best untouched; the old robotic ones a little slower and lower.
+  const u = Object.assign(new SpeechSynthesisUtterance(c.trim()),
+    { lang: "fr-FR", voice, rate: natural ? 1 : .95, pitch: natural ? 1 : .9 });
+  u.onend = u.onerror = () => { utterances.delete(u); spoke(); };
+  utterances.add(u);
+  speechSynthesis.speak(u);
+}
+function say(text) {
+  const sv = studioVoice();
   const clean = text.replace(/^⚙ .*$/gm, "").replace(/```[\s\S]*?```/g, " ").replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
     .replace(/https?:\/\/\S+/g, "").replace(/[*_#`>|~]/g, "").replace(/\s*\n+\s*/g, ". ");
   // Online voices stop after ~15 s of one utterance: speak chunks of whole sentences, queued.
@@ -1988,19 +2039,9 @@ function say(text) {
     if (chunks.length && chunks.at(-1).length + s.length < 220) chunks[chunks.length - 1] += s;
     else chunks.push(s);
   }
-  // Natural voices sound best untouched; the old robotic ones a little slower and lower.
   for (const c of chunks.filter(c => /\w/.test(c))) {
     ear?.abort();  // the microphone would hear Jarvis itself
-    const u = Object.assign(new SpeechSynthesisUtterance(c.trim()),
-      { lang: "fr-FR", voice, rate: natural ? 1 : .95, pitch: natural ? 1 : .9 });
-    u.onend = u.onerror = () => {
-      utterances.delete(u);
-      if (speechSynthesis.pending || speechSynthesis.speaking) return;
-      followUntil = Date.now() + 8000;
-      startEar();
-    };
-    utterances.add(u);
-    speechSynthesis.speak(u);
+    sv ? sayStudio(c.trim(), sv) : sayBrowser(c);
   }
 }
 
@@ -2008,7 +2049,7 @@ function say(text) {
 // or any sentence in the 8 s after Jarvis spoke (the conversation goes on); everything else is dropped.
 // The browser stops after each silence, so it starts again.
 function startEar() {
-  if (!TOKEN || !Recognition || !listen || ear || chat.mic || speechSynthesis.speaking || speechSynthesis.pending) return;
+  if (!TOKEN || !Recognition || !listen || ear || chat.mic || audioLeft || speechSynthesis.speaking || speechSynthesis.pending) return;
   ear = Object.assign(new Recognition(), { lang: "fr-FR", continuous: true });
   ear.onresult = e => {
     const r = e.results[e.results.length - 1];
@@ -2345,7 +2386,7 @@ document.addEventListener("click", e => {
   if (c?.dataset.chat === "voice") {
     speak = !speak;
     try { localStorage.setItem("jarvis.speak", speak ? "1" : "0"); } catch {}
-    speak ? talk("Bonjour. Je suis Jarvis, à votre service.") : speechSynthesis.cancel();
+    speak ? talk("Bonjour. Je suis Jarvis, à votre service.") : hush();
     render();
   }
   const s = e.target.closest("[data-share]");
